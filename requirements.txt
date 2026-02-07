@@ -1,0 +1,8 @@
+requests
+pandas
+numpy
+scipy
+networkx
+python-louvain
+scikit-learn
+schedule
