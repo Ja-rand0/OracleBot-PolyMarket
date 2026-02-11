@@ -282,7 +282,7 @@ def run_analysis(conn) -> tuple[str | None, list]:
     report = None
     picks = []
     with console.status("  [green]Generating report...[/]"):
-        report, picks = generate_report(conn, active_with_data, active_bets, wallets)
+        report, picks = generate_report(conn, active_with_data, active_bets, wallets, output_dir='reports')
 
     del active_bets, wallets
     gc.collect()

@@ -208,7 +208,7 @@ def run_analysis(conn) -> None:
     active_bets = _load_bets_for_markets(conn, active_markets[:200])  # cap for report
     active_with_data = [m for m in active_markets if m.id in active_bets]
 
-    generate_report(conn, active_with_data, active_bets, wallets)  # returns (text, picks)
+    generate_report(conn, active_with_data, active_bets, wallets, output_dir='reports')  # returns (text, picks)
 
     # Cleanup
     del active_bets
