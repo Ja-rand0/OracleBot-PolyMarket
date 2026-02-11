@@ -63,8 +63,11 @@ def generate_report(
     bets_by_market: dict[str, list[Bet]],
     wallets: dict[str, Wallet],
     output_dir: str = ".",
-) -> str:
-    """Generate a daily markdown report and return the content."""
+) -> tuple[str, list[tuple]]:
+    """Generate a daily markdown report.
+
+    Returns (report_text, scored_markets) where scored_markets is a list of
+    (Market, emotion_ratio, signal, confidence, n_bets) sorted by conviction."""
 
     today = datetime.utcnow().strftime("%Y-%m-%d")
 
@@ -77,13 +80,9 @@ def generate_report(
         "",
     ]
 
-    # --- Top Exploitable Markets ---
-    lines.append("## Top Exploitable Markets (High Madness Ratio)")
-    lines.append("")
-    lines.append("| Market | Madness Ratio | Smart Money Side | Confidence |")
-    lines.append("|--------|---------------|------------------|------------|")
-
-    market_scores: list[tuple[Market, float, float, float]] = []
+    # --- Score all markets ---
+    # Each entry: (Market, emotion_ratio, signal, confidence, n_bets, market_price)
+    market_scores: list[tuple[Market, float, float, float, int, float]] = []
 
     for market in markets:
         if market.resolved:
@@ -92,16 +91,81 @@ def generate_report(
         if len(market_bets) < 5:
             continue
 
-        signal, confidence, meta = _run_best_combo(best_methods, market, market_bets, wallets)
+        # Only pass wallets relevant to this market
+        mw = {b.wallet: wallets[b.wallet] for b in market_bets if b.wallet in wallets}
+        signal, confidence, meta = _run_best_combo(best_methods, market, market_bets, mw)
         emotion_ratio = meta.get("emotion_ratio", 0.0)
-        market_scores.append((market, emotion_ratio, signal, confidence))
 
-    market_scores.sort(key=lambda x: x[1], reverse=True)
+        # Current market price (YES probability) from last 20 trades.
+        # New data has odds already normalized; old data may have mixed
+        # YES/NO token prices so we use side as a heuristic.
+        recent = sorted(market_bets, key=lambda b: b.timestamp)[-20:]
+        yes_probs = [b.odds if b.side == "YES" else (1 - b.odds) for b in recent]
+        market_price = sum(yes_probs) / len(yes_probs) if yes_probs else 0.5
 
-    for market, ratio, signal, confidence in market_scores[:15]:
+        market_scores.append((market, emotion_ratio, signal, confidence, len(market_bets), market_price))
+
+    # Filter out markets at extreme prices — these are essentially settled
+    # and the bot has no real information to disagree with.
+    market_scores = [
+        m for m in market_scores if 0.05 <= m[5] <= 0.95
+    ]
+
+    # Rank by edge: how much the bot disagrees with the market price.
+    # If market says 50% YES and bot says strong YES (signal=0.8), edge is high.
+    # If market says 95% NO and bot also says NO, there's no edge (market agrees).
+    def _edge_score(entry):
+        _market, _ratio, signal, confidence, _n, price = entry
+        # Bot's implied probability: signal > 0 means YES, mapped to 0.5–1.0
+        bot_prob = 0.5 + signal * 0.5   # signal=+1 → 1.0, signal=-1 → 0.0
+        # Edge = how far bot diverges from market, weighted by confidence
+        return abs(bot_prob - price) * confidence
+
+    market_scores.sort(key=_edge_score, reverse=True)
+
+    # Drop markets where the bot has no meaningful edge
+    market_scores = [m for m in market_scores if _edge_score(m) > 0.01]
+
+    # --- TOP 3 PICKS ---
+    lines.append("## TOP 3 PICKS")
+    lines.append("")
+    if not market_scores:
+        lines.append("*No high-conviction picks yet — need more data or resolved combos.*")
+        lines.append("")
+    for i, (market, ratio, signal, confidence, n_bets, price) in enumerate(market_scores[:3]):
+        side = "YES" if signal > 0 else "NO"
+        buy_price = price if signal > 0 else (1 - price)
+        bot_prob = 0.5 + signal * 0.5
+        edge = abs(bot_prob - price) * confidence
+        lines.append(f"### #{i+1}  BET {side}")
+        lines.append(f"**{market.title}**")
+        lines.append(f"")
+        lines.append(f"- **Action:** Buy **{side}** shares")
+        lines.append(f"- **Current YES price:** ${price:.2f}  |  **Current NO price:** ${1-price:.2f}")
+        lines.append(f"- **You buy at:** ${buy_price:.2f}  |  **Pays:** $1.00 if correct")
+        lines.append(f"- **Bot says:** {bot_prob:.0%} YES  vs  market {price:.0%}  |  **Edge:** {edge:.2f}")
+        lines.append(f"- **Confidence:** {confidence:.2f}  |  **Madness Ratio:** {ratio:.2f}  |  **Bets Analyzed:** {n_bets}")
+        if market.description:
+            desc = market.description[:200].replace("\n", " ")
+            lines.append(f"- **Details:** {desc}")
+        lines.append("")
+
+    # --- All Exploitable Markets ---
+    lines.append("## All Exploitable Markets")
+    lines.append("")
+    lines.append("| # | Market | Action | Buy At | Edge | Conf | Madness |")
+    lines.append("|---|--------|--------|--------|------|------|---------|")
+
+    for i, (market, ratio, signal, confidence, n_bets, price) in enumerate(market_scores[:20]):
         side = "YES" if signal > 0 else "NO" if signal < 0 else "—"
-        title = market.title[:60]
-        lines.append(f"| {title} | {ratio:.2f} | {side} ({abs(signal):.2f}) | {confidence:.2f} |")
+        buy_price = price if signal > 0 else (1 - price) if signal < 0 else 0
+        bot_prob = 0.5 + signal * 0.5
+        edge = abs(bot_prob - price) * confidence
+        title = market.title[:50]
+        lines.append(
+            f"| {i+1} | {title} | BET {side} | ${buy_price:.2f} | "
+            f"{edge:.2f} | {confidence:.2f} | {ratio:.2f} |"
+        )
 
     lines.append("")
 
@@ -162,8 +226,4 @@ def generate_report(
         f.write(report)
 
     log.info("Report written to %s", filepath)
-
-    # Also print to console
-    print(report)
-
-    return report
+    return report, market_scores

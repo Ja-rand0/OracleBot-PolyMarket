@@ -215,7 +215,8 @@ def e13_hype_detection(
         if vol >= median_vol * config.E13_VOLUME_SPIKE_MULTIPLIER:
             spike_bets.extend(hourly_bets[hour])
 
-    clean_bets = [b for b in bets if b not in spike_bets]
+    spike_ids = {id(b) for b in spike_bets}
+    clean_bets = [b for b in bets if id(b) not in spike_ids]
 
     yes_vol = sum(b.amount for b in clean_bets if b.side == "YES")
     no_vol = sum(b.amount for b in clean_bets if b.side == "NO")

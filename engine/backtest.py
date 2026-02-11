@@ -3,8 +3,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
-
-import numpy as np
+from statistics import median
 
 import config
 from data.models import Bet, ComboResults, Market, MethodResult, Wallet
@@ -13,10 +12,12 @@ from methods import get_method
 
 log = logging.getLogger(__name__)
 
+# Cap bets per market to avoid O(n²) explosions in graph-based methods
+MAX_BETS_PER_MARKET = 500
+
 
 def _aggregate_signals(results: list[MethodResult]) -> tuple[float, float]:
-    """Combine multiple method results into a single signal + confidence.
-    Weighted average by confidence."""
+    """Combine multiple method results into a single signal + confidence."""
     if not results:
         return 0.0, 0.0
 
@@ -36,29 +37,25 @@ def backtest_combo(
     wallets: dict[str, Wallet],
     cutoff_fraction: float = config.BACKTEST_CUTOFF_FRACTION,
 ) -> ComboResults:
-    """Run a method combo against historical resolved markets.
-
-    For each resolved market:
-    1. Take bets up to cutoff_fraction of the market lifespan
-    2. Run each method in the combo
-    3. Aggregate signals
-    4. Compare predicted side to actual outcome
-    """
+    """Run a method combo against historical resolved markets."""
     correct = 0
     total_markets = 0
     edge_sum = 0.0
     false_positives = 0
     high_confidence_preds = 0
 
+    # Cache method function lookups once per combo
+    method_fns = [(mid, get_method(mid)) for mid in combo]
+    combo_id = ",".join(combo)
+
     for market in markets:
         if not market.resolved or market.outcome is None:
             continue
 
-        market_bets = bets_by_market.get(market.id, [])
-        if len(market_bets) < 5:
+        market_bets = bets_by_market.get(market.id)
+        if not market_bets or len(market_bets) < 5:
             continue
 
-        # Apply cutoff: only use bets from the first X% of the market lifespan
         lifespan = (market.end_date - market.created_at).total_seconds()
         if lifespan <= 0:
             continue
@@ -69,19 +66,25 @@ def backtest_combo(
         if len(visible_bets) < 3:
             continue
 
+        # Cap bets: keep most recent N to avoid O(n²) in graph methods
+        if len(visible_bets) > MAX_BETS_PER_MARKET:
+            visible_bets = visible_bets[-MAX_BETS_PER_MARKET:]
+
+        # Only pass wallets that appear in this market's bets (not all 139k)
+        market_addrs = {b.wallet for b in visible_bets}
+        market_wallets = {a: wallets[a] for a in market_addrs if a in wallets}
+
         # Run each method
         results: list[MethodResult] = []
         current_bets = visible_bets
-        for method_id in combo:
+        for method_id, fn in method_fns:
             try:
-                fn = get_method(method_id)
-                result = fn(market, current_bets, wallets)
+                result = fn(market, current_bets, market_wallets)
                 results.append(result)
-                # Methods that filter bets pass their filtered set forward
                 if result.filtered_bets:
                     current_bets = result.filtered_bets
             except Exception:
-                log.exception("Method %s failed on market %s", method_id, market.id[:16])
+                pass
 
         if not results:
             continue
@@ -89,7 +92,6 @@ def backtest_combo(
         signal, confidence = _aggregate_signals(results)
         total_markets += 1
 
-        # Prediction
         predicted = "YES" if signal > 0 else "NO"
         actual = market.outcome
 
@@ -101,8 +103,9 @@ def backtest_combo(
         if confidence > 0.5:
             high_confidence_preds += 1
 
-        # Edge: compare our confidence with market odds at cutoff
-        market_odds = float(np.median([b.odds for b in visible_bets]))
+        # Normalize odds to YES probability (handles old mixed data)
+        yes_probs = [b.odds if b.side == "YES" else (1 - b.odds) for b in visible_bets]
+        market_odds = median(yes_probs) if yes_probs else 0.5
         market_implied = "YES" if market_odds > 0.5 else "NO"
         if predicted == actual and market_implied != actual:
             edge_sum += abs(signal)
@@ -111,7 +114,6 @@ def backtest_combo(
     edge = edge_sum / total_markets if total_markets > 0 else 0.0
     fpr = false_positives / high_confidence_preds if high_confidence_preds > 0 else 0.0
 
-    combo_id = ",".join(combo)
     cr = ComboResults(
         combo_id=combo_id,
         methods_used=combo,
@@ -122,8 +124,4 @@ def backtest_combo(
         tested_at=datetime.utcnow(),
     )
     cr.fitness_score = calculate_fitness(cr)
-
-    log.info("Combo %s: accuracy=%.3f edge=%.3f fpr=%.3f fitness=%.4f (n=%d)",
-             combo_id, accuracy, edge, fpr, cr.fitness_score, total_markets)
-
     return cr

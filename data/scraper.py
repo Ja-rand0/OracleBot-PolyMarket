@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import requests
@@ -112,16 +112,22 @@ def fetch_markets(active_only: bool = True, limit: int = 100, max_pages: int = 5
 def _parse_clob_market(raw: dict) -> Market:
     """Parse a market from the CLOB API (has winner info on tokens)."""
     end_str = raw.get("end_date_iso", "")
-    created_str = raw.get("accepting_order_timestamp", "")
+    # Try multiple fields for created_at — accepting_order_timestamp is often
+    # empty for old markets, so fall back to a date well before end_date
+    created_str = (
+        raw.get("accepting_order_timestamp")
+        or raw.get("game_start_time")
+        or ""
+    )
 
-    def _parse_dt(s: str) -> datetime:
+    def _parse_dt(s: str) -> datetime | None:
         if not s:
-            return datetime.now(timezone.utc).replace(tzinfo=None)
+            return None
         s = s.replace("Z", "+00:00")
         try:
             return datetime.fromisoformat(s).replace(tzinfo=None)
         except ValueError:
-            return datetime.now(timezone.utc).replace(tzinfo=None)
+            return None
 
     tokens = raw.get("tokens", [])
     resolved = False
@@ -129,8 +135,6 @@ def _parse_clob_market(raw: dict) -> Market:
     for i, tok in enumerate(tokens):
         if tok.get("winner"):
             resolved = True
-            # Normalize: map to YES/NO based on token index
-            # tokens[0] = YES side, tokens[1] = NO side
             out = tok.get("outcome", "")
             if out.lower() in ("yes", "no"):
                 outcome = out.upper()
@@ -138,14 +142,20 @@ def _parse_clob_market(raw: dict) -> Market:
                 outcome = "YES" if i == 0 else "NO"
             break
 
+    end_date = _parse_dt(end_str) or datetime.utcnow()
+    created_at = _parse_dt(created_str)
+    if created_at is None or created_at > end_date:
+        # Fallback: assume market ran for 30 days before end_date
+        created_at = end_date - timedelta(days=30)
+
     return Market(
         id=raw.get("condition_id", ""),
         title=raw.get("question", ""),
         description=raw.get("description", ""),
-        end_date=_parse_dt(end_str),
+        end_date=end_date,
         resolved=resolved,
         outcome=outcome,
-        created_at=_parse_dt(created_str),
+        created_at=created_at,
     )
 
 
@@ -209,12 +219,23 @@ def _parse_trade(raw: dict, condition_id: str) -> Bet:
         else:
             side = "NO" if outcome_index == 0 else "YES"
 
+    # Normalize odds to YES probability regardless of which token was traded.
+    # API "price" is the execution price of the specific token (YES or NO).
+    raw_price = float(raw.get("price", 0))
+    if outcome.lower() == "no":
+        yes_prob = 1.0 - raw_price      # NO token at $0.40 → YES prob = $0.60
+    elif outcome.lower() == "yes":
+        yes_prob = raw_price             # YES token at $0.60 → YES prob = $0.60
+    else:
+        # Multi-outcome: index 0 = YES token, index 1 = NO token
+        yes_prob = (1.0 - raw_price) if outcome_index == 1 else raw_price
+
     return Bet(
         market_id=condition_id,
         wallet=raw.get("proxyWallet", ""),
         side=side,
         amount=float(raw.get("size", 0)),
-        odds=float(raw.get("price", 0)),
+        odds=max(0.0, min(1.0, yes_prob)),
         timestamp=dt,
     )
 
@@ -222,10 +243,11 @@ def _parse_trade(raw: dict, condition_id: str) -> Bet:
 def fetch_trades_for_market(
     condition_id: str,
     limit: int = 500,
-    max_pages: int = 20,
+    max_pages: int = 7,
     since: datetime | None = None,
 ) -> list[Bet]:
-    """Fetch public trades for a market from the Data API."""
+    """Fetch public trades for a market from the Data API.
+    API hard-caps at offset ~3500, so max_pages=7 at limit=500."""
     data_api_url = "https://data-api.polymarket.com/trades"
     bets: list[Bet] = []
     offset = 0
@@ -233,7 +255,7 @@ def fetch_trades_for_market(
     for page in range(max_pages):
         params: dict[str, Any] = {
             "market": condition_id,
-            "limit": min(limit, 10000),
+            "limit": limit,
             "offset": offset,
         }
 

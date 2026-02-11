@@ -74,7 +74,7 @@ def d6_pagerank(
         return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets,
                             metadata={"reason": "missing networkx"})
 
-    if len(bets) < 5:
+    if len(bets) < 10:
         return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets)
 
     # Build a directed graph: temporal edges (wallet that bets first → wallet

@@ -13,11 +13,16 @@ from methods import CATEGORIES, get_methods_by_category
 
 log = logging.getLogger(__name__)
 
+# Cap combo sizes to prevent combinatorial explosion
+MAX_TIER1_COMBO_SIZE = 3   # within-category: singles, pairs, triples
+MAX_TIER2_COMBO_SIZE = 3   # cross-category: pairs and triples of finalists
+MAX_TIER3_SEEDS = 3        # hill-climb only the top 3
 
-def _all_combos(method_ids: list[str]) -> list[list[str]]:
-    """Generate all non-empty subsets of method_ids."""
+
+def _sized_combos(method_ids: list[str], max_size: int) -> list[list[str]]:
+    """Generate combos from size 1..max_size."""
     result = []
-    for r in range(1, len(method_ids) + 1):
+    for r in range(1, min(max_size, len(method_ids)) + 1):
         for combo in combinations(method_ids, r):
             result.append(list(combo))
     return result
@@ -29,8 +34,7 @@ def tier1(
     bets_by_market: dict[str, list[Bet]],
     wallets: dict[str, Wallet],
 ) -> dict[str, list[ComboResults]]:
-    """Tier 1: test all within-category combinations.
-    Returns top N per category."""
+    """Tier 1: test within-category combinations (up to triples)."""
     category_results: dict[str, list[ComboResults]] = {}
 
     for cat_name, method_ids in CATEGORIES.items():
@@ -41,8 +45,8 @@ def tier1(
             log.warning("No methods registered for category %s", cat_name)
             continue
 
-        combos = _all_combos(available)
-        log.info("Tier 1 — Category %s: testing %d combos from %d methods",
+        combos = _sized_combos(available, MAX_TIER1_COMBO_SIZE)
+        log.info("Tier 1 — %s: %d combos from %d methods",
                  cat_name, len(combos), len(available))
 
         results: list[ComboResults] = []
@@ -51,7 +55,6 @@ def tier1(
             db.insert_method_result(conn, cr)
             results.append(cr)
 
-        # Sort by fitness, keep top N
         results.sort(key=lambda r: r.fitness_score, reverse=True)
         top = results[:config.TIER1_TOP_PER_CATEGORY]
         category_results[cat_name] = top
@@ -70,9 +73,8 @@ def tier2(
     bets_by_market: dict[str, list[Bet]],
     wallets: dict[str, Wallet],
 ) -> list[ComboResults]:
-    """Tier 2: cross-category combinations of Tier 1 finalists."""
+    """Tier 2: cross-category pairs and triples of Tier 1 finalists."""
 
-    # Collect all finalist sub-combos
     finalists: list[list[str]] = []
     for cat_results in tier1_results.values():
         for cr in cat_results:
@@ -82,14 +84,13 @@ def tier2(
         log.warning("No Tier 1 finalists — skipping Tier 2")
         return []
 
-    # Generate all non-empty subsets of the finalist combos
+    # Only pairs and triples — NOT all 2^N subsets
     all_combos: list[list[str]] = []
-    for r in range(1, len(finalists) + 1):
+    for r in range(2, min(MAX_TIER2_COMBO_SIZE + 1, len(finalists) + 1)):
         for subset in combinations(range(len(finalists)), r):
             merged: list[str] = []
             for idx in subset:
                 merged.extend(finalists[idx])
-            # Deduplicate while preserving order
             seen: set[str] = set()
             unique: list[str] = []
             for m in merged:
@@ -98,12 +99,12 @@ def tier2(
                     unique.append(m)
             all_combos.append(unique)
 
-    log.info("Tier 2: testing %d cross-category combos from %d finalists",
+    log.info("Tier 2: testing %d combos from %d finalists",
              len(all_combos), len(finalists))
 
     results: list[ComboResults] = []
     for i, combo in enumerate(all_combos):
-        if (i + 1) % 1000 == 0:
+        if (i + 1) % 100 == 0:
             log.info("  Tier 2 progress: %d / %d", i + 1, len(all_combos))
         cr = backtest_combo(combo, markets, bets_by_market, wallets)
         db.insert_method_result(conn, cr)
@@ -126,11 +127,11 @@ def tier3(
     bets_by_market: dict[str, list[Bet]],
     wallets: dict[str, Wallet],
 ) -> list[ComboResults]:
-    """Tier 3: hill-climbing fine-tuning on top combos."""
+    """Tier 3: hill-climbing on the top few combos."""
 
     refined: list[ComboResults] = []
 
-    for cr in tier2_top:
+    for cr in tier2_top[:MAX_TIER3_SEEDS]:
         current = list(cr.methods_used)
         current_fitness = cr.fitness_score
         improved = True
@@ -147,9 +148,9 @@ def tier3(
                     current = candidate
                     current_fitness = result.fitness_score
                     improved = True
-                    log.info("  Tier 3 +%s → fitness=%.4f", method, current_fitness)
+                    log.info("  Tier 3 +%s -> fitness=%.4f", method, current_fitness)
                     db.insert_method_result(conn, result)
-                    break  # restart the loop
+                    break
 
             if improved:
                 continue
@@ -163,7 +164,7 @@ def tier3(
                         current = candidate
                         current_fitness = result.fitness_score
                         improved = True
-                        log.info("  Tier 3 -%s → fitness=%.4f", method, current_fitness)
+                        log.info("  Tier 3 -%s -> fitness=%.4f", method, current_fitness)
                         db.insert_method_result(conn, result)
                         break
 
@@ -182,14 +183,24 @@ def run_full_optimization(
     bets_by_market: dict[str, list[Bet]],
     wallets: dict[str, Wallet],
 ) -> list[ComboResults]:
-    """Run the complete Tier 1 → 2 → 3 optimization pipeline."""
+    """Run the complete Tier 1 -> 2 -> 3 optimization pipeline."""
     from methods import get_all_method_ids
 
     log.info("=== Starting full optimization ===")
 
     t1 = tier1(conn, markets, bets_by_market, wallets)
+    db.flush_method_results(conn)
+
     t2 = tier2(conn, t1, markets, bets_by_market, wallets)
+    db.flush_method_results(conn)
+
     t3 = tier3(conn, t2, get_all_method_ids(), markets, bets_by_market, wallets)
+    db.flush_method_results(conn)
+
+    # Keep only the top 50 results, delete the rest
+    pruned = db.prune_method_results(conn, keep=50)
+    if pruned:
+        log.info("Pruned %d old method results", pruned)
 
     log.info("=== Optimization complete — top combo: %s (fitness=%.4f) ===",
              t3[0].combo_id if t3 else "none", t3[0].fitness_score if t3 else 0)

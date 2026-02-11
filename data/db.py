@@ -30,7 +30,7 @@ def _dt(s: str) -> datetime:
 # ---------------------------------------------------------------------------
 def get_connection(db_path: str | None = None) -> sqlite3.Connection:
     path = db_path or config.DB_PATH
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
@@ -83,7 +83,7 @@ def init_db(conn: sqlite3.Connection) -> None:
 
         CREATE TABLE IF NOT EXISTS method_results (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            combo_id TEXT,
+            combo_id TEXT UNIQUE,
             methods_used TEXT,
             accuracy REAL,
             edge_vs_market REAL,
@@ -99,6 +99,46 @@ def init_db(conn: sqlite3.Connection) -> None:
         """
     )
     conn.commit()
+
+    # Ensure unique index on bets — deduplicate existing rows first
+    has_idx = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_bets_unique'"
+    ).fetchone()
+    if not has_idx:
+        dupes = conn.execute(
+            """DELETE FROM bets WHERE id NOT IN (
+                   SELECT MIN(id) FROM bets
+                   GROUP BY market_id, wallet, side, amount, timestamp
+               )"""
+        ).rowcount
+        if dupes:
+            log.info("Removed %d duplicate bets", dupes)
+        conn.execute(
+            """CREATE UNIQUE INDEX idx_bets_unique
+               ON bets(market_id, wallet, side, amount, timestamp)"""
+        )
+        conn.commit()
+
+    # Ensure unique constraint on method_results.combo_id
+    has_mr_idx = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_mr_combo_unique'"
+    ).fetchone()
+    if not has_mr_idx:
+        # Keep only the best fitness per combo_id
+        conn.execute(
+            """DELETE FROM method_results WHERE id NOT IN (
+                   SELECT id FROM (
+                       SELECT id, ROW_NUMBER() OVER (
+                           PARTITION BY combo_id ORDER BY fitness_score DESC
+                       ) AS rn FROM method_results
+                   ) WHERE rn = 1
+               )"""
+        )
+        conn.execute(
+            "CREATE UNIQUE INDEX idx_mr_combo_unique ON method_results(combo_id)"
+        )
+        conn.commit()
+
     log.info("Database schema initialised")
 
 
@@ -293,11 +333,35 @@ def insert_method_result(conn: sqlite3.Connection, cr: ComboResults) -> None:
         INSERT INTO method_results (combo_id, methods_used, accuracy, edge_vs_market,
                                     false_positive_rate, complexity, fitness_score, tested_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(combo_id) DO UPDATE SET
+            accuracy=excluded.accuracy,
+            edge_vs_market=excluded.edge_vs_market,
+            false_positive_rate=excluded.false_positive_rate,
+            complexity=excluded.complexity,
+            fitness_score=excluded.fitness_score,
+            tested_at=excluded.tested_at
+        WHERE excluded.fitness_score >= method_results.fitness_score
         """,
         (cr.combo_id, json.dumps(cr.methods_used), cr.accuracy, cr.edge_vs_market,
          cr.false_positive_rate, cr.complexity, cr.fitness_score, _ts(cr.tested_at)),
     )
+
+
+def flush_method_results(conn: sqlite3.Connection) -> None:
+    """Commit any pending method result inserts."""
     conn.commit()
+
+
+def prune_method_results(conn: sqlite3.Connection, keep: int = 50) -> int:
+    """Delete all but the top N results by fitness. Returns rows deleted."""
+    deleted = conn.execute(
+        """DELETE FROM method_results WHERE id NOT IN (
+               SELECT id FROM method_results ORDER BY fitness_score DESC LIMIT ?
+           )""",
+        (keep,),
+    ).rowcount
+    conn.commit()
+    return deleted
 
 
 def get_top_combos(conn: sqlite3.Connection, limit: int = 10) -> list[ComboResults]:

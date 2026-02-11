@@ -146,7 +146,7 @@ def s3_coordination_clustering(
         return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets,
                             metadata={"reason": "missing dependencies"})
 
-    if len(bets) < 5:
+    if len(bets) < 10:
         return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets)
 
     # Group bets by market_id to find cross-market co-betting
