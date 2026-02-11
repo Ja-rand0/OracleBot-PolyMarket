@@ -1,8 +1,21 @@
-# PolyMarketTracker
+# OracleBot-PolyMarket
 
-Small trading/research toolkit for tracking PolyMarket-style event markets and backtesting strategies.
+This bot is a sophisticated prediction agent for Polymarket-style event markets. It employs a multi-faceted approach centered around analyzing bettor behavior and aggressively filtering data to derive a "cleaner" and more reliable predictive signal.
 
-See `main.py`, `engine/`, and `data/` for core components.
+**Core Philosophy:** The bot assumes that most bettors exhibit irrational, emotional, or manipulative behaviors. By identifying and filtering out bets originating from such sources, it aims to uncover the true underlying signal in the market, driven by more rational or informed participants.
+
+**Methodology:**
+The bot utilizes a modular analysis pipeline with different "methods" organized into categories:
+-   **Suspicious Methods:** Identify and filter bets from informed traders, manipulative actors, or coordinated groups (e.g., detecting high win rates, unusual betting timings, coordinated activity).
+-   **Discrete Methods:** Analyze market structure and bettor influence using graph theory and logical principles (e.g., PageRank to find influential bettors, segmenting bettors based on "rationality_score").
+-   **Emotional Methods:** A core filtering strategy to eliminate "noise" by identifying bets driven by cognitive biases (e.g., loyalty bias, recency bias, revenge betting, hype detection, bets with round numbers).
+-   **Statistical & Psychological Methods:** Further refine the signal by applying statistical models and broader psychological analyses to the filtered data.
+
+The bot profiles individual wallets, computes metrics like `win_rate` and `rationality_score`, and subjects bets to multi-stage filtering. The signals from various methods are then optimized through backtesting to achieve the best predictive performance.
+
+## AI Experimentation
+
+This project was developed by Claude to test its capabilities in understanding, building, and refining software in the context of market analysis and automation. It serves as an experiment to explore how AI can be utilized for developing tools that interact with and derive insights from dynamic market environments.
 
 ## Setup
 
