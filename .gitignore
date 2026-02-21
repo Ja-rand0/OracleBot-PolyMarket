@@ -34,6 +34,4 @@ nul
 *.db-wal
 temp_gamma.json
 dCodingtemp_gamma_event.json
-reports/
-config.py
 .claude/
