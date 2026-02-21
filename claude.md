@@ -479,6 +479,7 @@ The main Claude Code session acts as an **overseer** that delegates to specializ
 | Threshold optimization | `threshold-tuner` | Analyze sensitivity of config constants, propose adjustments based on backtest data |
 | API reliability | `api-health-checker` | Ping endpoints, validate schemas, monitor rate limits, flag stale data |
 | Wallet deep-dives | `wallet-profiler` | Investigate individual wallet histories, cross-market behavior, rationality validation |
+| Testing & debugging | `debug-doctor` | Read logs, run tests, validate new code, trace errors, document bugs |
 | Simple code changes | **direct** (overseer) | Fix a bug, add a config constant, small refactors |
 
 ### Guidelines
@@ -487,6 +488,7 @@ The main Claude Code session acts as an **overseer** that delegates to specializ
 - **Delegate** when the task is self-contained and matches an agent's specialty.
 - **Chain pattern**: For complex work, run `task-decomposer` first to get a plan, then execute subtasks (directly or via other agents).
 - **Data questions**: Always route to `data-analyst` — it knows the schema and has safety hooks preventing writes.
+- **Post-change validation**: Always route to `debug-doctor` after modifying methods, engine, or scraper code. It reads logs, reports, and runs tests.
 - **Never** let agents modify core application logic without overseer review.
 
 ### Agent Reference
@@ -502,6 +504,7 @@ The main Claude Code session acts as an **overseer** that delegates to specializ
 | `threshold-tuner` | sonnet | Stub | Config constant sensitivity analysis, parameter optimization proposals |
 | `api-health-checker` | haiku | Stub | Endpoint monitoring, schema validation, rate limit tracking, data freshness |
 | `wallet-profiler` | sonnet | Stub | Individual wallet investigation, cross-market behavior, rationality validation |
+| `debug-doctor` | sonnet | **Active** | Log analysis, test execution, error tracing, regression detection, bug documentation |
 
 ### Agent Activation Milestones
 
@@ -541,6 +544,90 @@ The main Claude Code session acts as an **overseer** that delegates to specializ
 - "Which methods have the highest marginal fitness contribution?"
 - "Why does combo [S1,E13,M27] have high accuracy but negative edge?"
 - "Compare fitness distribution before and after adding Markov methods"
+
+### Debug Doctor — Full Specification
+
+**Model:** sonnet (fast enough for log parsing, smart enough for root cause analysis)
+
+**Purpose:** The testing, debugging, and documentation agent. Reads all output the bot produces — logs, reports, test results — and maintains a clear picture of system health. After any code change (like adding M25-M28), this agent validates the integration, catches regressions, and documents issues.
+
+**Data sources (read-only):**
+1. `bot.log` — Main runtime log. Format: `%(asctime)s [%(levelname)s] %(name)s: %(message)s` (ISO 8601 UTC). Contains INFO, WARNING, ERROR, and EXCEPTION entries with full stack traces.
+2. `caretaker.log` — Watchdog process log. Format: `%(asctime)s [CARETAKER] %(message)s`. Tracks dashboard launches, crashes, restart counts, exit codes.
+3. `reports/report_YYYY-MM-DD.md` — Daily markdown reports. Contains top picks, exploitable markets table, suspicious wallet activity, sandpit alerts, and method combo performance (top 5 by fitness).
+4. `test_pipeline.py` output — 4-step pipeline test (fetch resolved markets → fetch trades → build wallet profiles → backtest combos).
+5. `CLAUDE.md` Bug Tracking section — Resolved bugs (B001-B017), known issues (P001-P015), areas needing review.
+
+**Capabilities:**
+
+1. **Log analysis** — Parse `bot.log` for patterns:
+   - Count errors/warnings per module per time window
+   - Extract stack traces and group by root cause
+   - Detect new error types that weren't present before a code change
+   - Flag log growth anomalies (sudden burst of warnings = something broke)
+   - Check for silent failures: methods returning `signal=0, confidence=0` with reason metadata
+
+2. **Test execution & interpretation** — Run `test_pipeline.py` and interpret results:
+   - Verify all 4 steps complete without exceptions
+   - Check that new methods (M25-M28) execute during backtest step
+   - Compare combo fitness scores against previous runs (regression detection)
+   - Validate that method registration is correct: 28 methods, 6 categories
+
+3. **Report validation** — Read latest report from `reports/` and check:
+   - Are picks being generated? (empty picks = signal pipeline broken)
+   - Are edge values reasonable? (negative edge or edge > 0.5 = suspicious)
+   - Does the combo performance table include new methods?
+   - Are madness ratios computed correctly? (NaN or 0.0 on all markets = bug)
+   - Compare against previous reports: did quality degrade after a change?
+
+4. **Regression detection** — After any code change:
+   - Run the import smoke test: `from methods import CATEGORIES, METHODS; assert len(METHODS) == expected`
+   - Verify no existing methods broke by checking for new exceptions in log
+   - Compare method_results table: did previously-good combos lose fitness?
+   - Check for import errors, missing config constants, type mismatches
+
+5. **Bug documentation** — When an issue is found:
+   - Assign the next available bug ID (B-series for resolved, P-series for known)
+   - Document in the format matching CLAUDE.md Bug Tracking tables
+   - Include: module, risk level, description, and proposed fix
+   - Cross-reference with existing known issues (is this a recurrence of P006? P011?)
+
+6. **Caretaker health** — Read `caretaker.log` to check:
+   - How many restarts occurred? (frequent restarts = unstable dashboard)
+   - What were the exit codes? (non-zero = crash, not graceful shutdown)
+   - Time between restarts (decreasing interval = cascading failure)
+
+**Safety:** Read-only access to all files. Same `validate_readonly_query.py` hook applies for any database queries. Cannot modify source code — reports findings to overseer for action.
+
+**Input format:** Overseer provides context like:
+- "Validate the M25-M28 integration" (post-change validation)
+- "Check bot.log for errors in the last 24 hours" (routine health check)
+- "Compare today's report against last week's" (quality tracking)
+- "Run test_pipeline.py and report results" (full pipeline test)
+
+**Output format:** Structured markdown:
+- **Status:** PASS / WARN / FAIL (overall assessment)
+- **Findings:** Numbered list of issues with severity (critical/warning/info)
+- **Log excerpts:** Relevant error/warning lines with timestamps
+- **Report comparison:** Side-by-side metrics if comparing runs
+- **Bug entries:** Pre-formatted rows for CLAUDE.md Bug Tracking tables if new issues found
+- **Recommendations:** Specific next steps for the overseer
+
+**Example queries:**
+- "We just added M25-M28. Validate everything still works."
+- "Parse bot.log — any new errors since the last commit?"
+- "Read the latest daily report. Are picks reasonable?"
+- "Run test_pipeline and tell me if M methods show up in backtest results."
+- "Check if caretaker has been restarting the dashboard excessively."
+- "Compare reports from Feb 7, 10, and 11 — is quality trending up or down?"
+
+**Post-change validation checklist** (run after any code modification):
+1. Import test: `python -c "from methods import METHODS; print(len(METHODS))"`
+2. Config test: `python -c "import config; print(config.TOTAL_METHODS)"`
+3. Parse last 50 lines of `bot.log` for new ERROR/EXCEPTION entries
+4. Read latest report in `reports/` — verify structure and non-empty picks
+5. If methods changed: run `test_pipeline.py` step 4 (backtest) to verify execution
+6. Report findings with PASS/WARN/FAIL status
 
 ### Stub Agents — Specs for Future Activation
 
