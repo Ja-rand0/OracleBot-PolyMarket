@@ -76,7 +76,7 @@ def generate_report(
     best_methods = top_combos[0].methods_used if top_combos else []
 
     lines = [
-        f"# Polymarket Bot — Daily Report ({today})",
+        f"# OracleBot — Daily Report ({today})",
         "",
     ]
 

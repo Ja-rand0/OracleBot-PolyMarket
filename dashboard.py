@@ -1,4 +1,4 @@
-"""Visual terminal dashboard for the Polymarket bot."""
+"""Visual terminal dashboard for OracleBot."""
 from __future__ import annotations
 
 import gc
@@ -386,7 +386,7 @@ def run():
     db.init_db(conn)
 
     console.print(Panel(
-        "[bold cyan]PBCareTaker[/] [dim]— Polymarket Bot Dashboard[/]",
+        "[bold cyan]OracleBot[/] [dim]— Dashboard[/]",
         style="bold cyan",
         expand=True,
     ))

@@ -1,5 +1,5 @@
 @echo off
-title PBCareTaker - Polymarket Bot
+title OracleBot
 cd /d "%~dp0"
 python caretaker.py
 pause

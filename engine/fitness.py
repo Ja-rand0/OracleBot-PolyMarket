@@ -18,6 +18,6 @@ def calculate_fitness(cr: ComboResults) -> float:
         cr.accuracy * config.FITNESS_W_ACCURACY
         + cr.edge_vs_market * config.FITNESS_W_EDGE
         - cr.false_positive_rate * config.FITNESS_W_FALSE_POS
-        - (cr.complexity / 24) * config.FITNESS_W_COMPLEXITY
+        - (cr.complexity / config.TOTAL_METHODS) * config.FITNESS_W_COMPLEXITY
     )
     return fitness

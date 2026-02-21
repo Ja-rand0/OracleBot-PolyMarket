@@ -1,4 +1,4 @@
-"""PBCareTaker — launches the visual dashboard and restarts it on crash."""
+"""OracleBot caretaker — launches the visual dashboard and restarts it on crash."""
 import logging
 import subprocess
 import sys
@@ -57,7 +57,7 @@ def run():
 
         restarts += 1
 
-    log.info("PBCareTaker shut down (total restarts: %d)", restarts)
+    log.info("OracleBot caretaker shut down (total restarts: %d)", restarts)
 
 
 if __name__ == "__main__":

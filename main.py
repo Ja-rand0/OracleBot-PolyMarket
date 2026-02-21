@@ -222,7 +222,7 @@ def run_analysis(conn) -> None:
 # CLI
 # ---------------------------------------------------------------------------
 def main():
-    parser = argparse.ArgumentParser(description="Polymarket Prediction Bot (read-only)")
+    parser = argparse.ArgumentParser(description="OracleBot (read-only)")
     parser.add_argument("command", choices=["collect", "analyze", "run", "init"],
                         help="collect=fetch data, analyze=run analysis, "
                              "run=continuous loop, init=create DB only")

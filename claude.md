@@ -1,10 +1,10 @@
-# Polymarket Prediction Bot
+# OracleBot
 
 ## Purpose & Vision
 
 Read-only analytics bot that detects **sharp money** (informed/insider bets) on Polymarket by:
 1. Filtering out emotional/irrational bets using behavioral economics
-2. Applying 24 detection methods across 5 categories
+2. Applying 28 detection methods across 6 categories
 3. Brute-force testing every method combination for optimal signal extraction
 4. Ranking markets by exploitable edge (bot vs. market disagreement)
 
@@ -96,7 +96,7 @@ Read-only analytics bot that detects **sharp money** (informed/insider bets) on 
 
 **Engine**: `FITNESS_W_ACCURACY=0.35`, `FITNESS_W_EDGE=0.35`, `FITNESS_W_FALSE_POS=0.20`, `FITNESS_W_COMPLEXITY=0.10`, `BACKTEST_CUTOFF_FRACTION`, `TIER1_TOP_PER_CATEGORY`, `TIER2_TOP_OVERALL`, `SCRAPE_INTERVAL_MINUTES`, `DB_PATH`
 
-**Method thresholds**: `S1_MIN_RESOLVED_BETS`, `S1_STDDEV_THRESHOLD`, `S2_LATE_STAGE_FRACTION`, `S2_HIGH_CONVICTION_ODDS`, `S3_TIME_WINDOW_MINUTES`, `S3_MIN_CLUSTER_SIZE`, `E10_MIN_MARKETS`, `E10_CONSISTENCY_THRESHOLD`, `E12_WINDOW_HOURS`, `E13_VOLUME_SPIKE_MULTIPLIER`, `E14_LOW_CORRELATION_THRESHOLD`, `E15_ROUND_DIVISOR`, `E16_KL_THRESHOLD`, `T18_CHI_SQUARED_PVALUE`, `T19_ZSCORE_THRESHOLD`, `P20_DEVIATION_THRESHOLD`, `P21_LOW_PROB`, `P21_HIGH_PROB`, `P22_MIN_HERD_SIZE`, `P22_TIME_WINDOW_MINUTES`, `P23_ANCHOR_MIN_AMOUNT`, `P24_HIGH_RATIO`, `P24_LOW_RATIO`
+**Method thresholds**: `S1_MIN_RESOLVED_BETS`, `S1_STDDEV_THRESHOLD`, `S2_LATE_STAGE_FRACTION`, `S2_HIGH_CONVICTION_ODDS`, `S3_TIME_WINDOW_MINUTES`, `S3_MIN_CLUSTER_SIZE`, `E10_MIN_MARKETS`, `E10_CONSISTENCY_THRESHOLD`, `E12_WINDOW_HOURS`, `E13_VOLUME_SPIKE_MULTIPLIER`, `E14_LOW_CORRELATION_THRESHOLD`, `E15_ROUND_DIVISOR`, `E16_KL_THRESHOLD`, `T18_CHI_SQUARED_PVALUE`, `T19_ZSCORE_THRESHOLD`, `P20_DEVIATION_THRESHOLD`, `P21_LOW_PROB`, `P21_HIGH_PROB`, `P22_MIN_HERD_SIZE`, `P22_TIME_WINDOW_MINUTES`, `P23_ANCHOR_MIN_AMOUNT`, `P24_HIGH_RATIO`, `P24_LOW_RATIO`, `M25_MIN_WALLET_BETS`, `M25_SMALL_MULTIPLIER`, `M25_LARGE_MULTIPLIER`, `M25_ESCALATION_THRESHOLD`, `M25_CONFIDENCE_CAP`, `M26_NUM_WINDOWS`, `M26_LOW_THRESHOLD`, `M26_HIGH_THRESHOLD`, `M26_TRENDING_THRESHOLD`, `M27_NUM_WINDOWS`, `M27_FLOW_THRESHOLD`, `M27_MOMENTUM_THRESHOLD`, `M28_SMART_THRESHOLD`, `M28_RETAIL_THRESHOLD`, `M28_NUM_WINDOWS`, `M28_MIN_SMART_WALLETS`, `M28_MIN_RETAIL_WALLETS`, `TOTAL_METHODS`
 
 ---
 
@@ -107,7 +107,7 @@ config.py               — constants, API endpoints, all method thresholds
 main.py                 — CLI entry (collect/analyze/run/init) + scheduler
 dashboard.py            — rich terminal dashboard, main runtime loop
 caretaker.py            — watchdog: auto-restarts dashboard on crash
-PBCareTaker.bat         — Windows launcher for caretaker
+oracle.bat              — Windows launcher for caretaker
 
 data/
   models.py             — dataclasses: Market, Bet, Wallet, MethodResult, ComboResults, WalletRelationship
@@ -115,12 +115,13 @@ data/
   scraper.py            — API ingestion (Gamma=markets, Data=trades, CLOB=orderbook, Polygonscan=on-chain)
 
 methods/
-  __init__.py           — registry (24 methods, @register decorator, MethodFn type)
+  __init__.py           — registry (28 methods, @register decorator, MethodFn type)
   suspicious.py         — S1-S4: wallet-level anomaly detection
   discrete.py           — D5-D9: mathematical structure analysis
   emotional.py          — E10-E16: behavioral bias filtering
   statistical.py        — T17-T19: statistical outlier detection
   psychological.py      — P20-P24: market psychology signals
+  markov.py             — M25-M28: Markov chain temporal transition analysis
 
 engine/
   fitness.py            — scoring: accuracy*0.35 + edge*0.35 - FPR*0.20 - complexity*0.10
@@ -186,7 +187,7 @@ confidence = sum(r.confidence for r in results) / len(results)
 
 ---
 
-## Detection Methods (24 total)
+## Detection Methods (28 total)
 
 ### Category S — Suspicious Wallet Detection (S1-S4)
 
@@ -237,13 +238,22 @@ confidence = sum(r.confidence for r in results) / len(results)
 | **P23** | Anchoring | Market stuck on the first large bet's price | Finds anchor = first bet ≥ `P23_ANCHOR_MIN_AMOUNT`. Measures how much subsequent bets cluster around anchor odds (mean absolute diff). If anchoring_strength >0.7, signal = direction of late money (which may disagree with the anchor). |
 | **P24** | Wisdom vs Madness | Market efficiency estimator | Meta-signal: measures what % of bets are emotional (rationality <0.4). High ratio (> `P24_HIGH_RATIO`) = "madness of crowds" → market is exploitable, trust signal. Low ratio (< `P24_LOW_RATIO`) = "wisdom of crowds" → market is efficient, dampen signal. |
 
+### Category M — Markov Chain / Temporal Transition Analysis (M25-M28)
+
+| ID | Name | What It Detects | Algorithm |
+|----|------|-----------------|-----------|
+| **M25** | Wallet Regime | Wallets escalating bet sizes (informed accumulation) | Groups bets by wallet, classifies each into size tier (small/medium/large relative to wallet median). Builds 3x3 transition matrix per wallet. Escalation score = `(P(S→M) + P(M→L) + P(S→L)) / 3`. Flags wallets above `M25_ESCALATION_THRESHOLD`. Signal = YES/NO volume ratio of escalating wallets. |
+| **M26** | Market Phases | Trending vs. mean-reverting market price dynamics | Divides timeline into `M26_NUM_WINDOWS` windows. Classifies each by median YES-prob: LOW/MID/HIGH. Builds transition matrix. Trending score = average self-transition probability. If > `M26_TRENDING_THRESHOLD`, signal = direction of last state. |
+| **M27** | Flow Momentum | Persistent directional bet flow vs. oscillation | Divides into `M27_NUM_WINDOWS` windows. Net dollar flow per window → YES_HEAVY/BALANCED/NO_HEAVY. Momentum score = `(P(Y→Y) + P(N→N)) / 2`. High momentum = signal follows flow. High reversal = contrarian signal. |
+| **M28** | Smart-Follow | Smart money leading retail in temporal betting order | Splits wallets by rationality into smart (≥`M28_SMART_THRESHOLD`) and retail (<`M28_RETAIL_THRESHOLD`). Per time window: who bets first? Builds SMART_LEADS/MIXED/RETAIL_LEADS transition matrix. If smart leads persistently, signal = smart money direction. Contrarian amplification when retail leads opposite. |
+
 ---
 
 ## Engine Pipeline
 
 ### Fitness Function
 ```
-fitness = accuracy * 0.35 + edge_vs_market * 0.35 - false_positive_rate * 0.20 - (complexity / 24) * 0.10
+fitness = accuracy * 0.35 + edge_vs_market * 0.35 - false_positive_rate * 0.20 - (complexity / TOTAL_METHODS) * 0.10
 ```
 - **accuracy**: % of resolved markets predicted correctly
 - **edge_vs_market**: how often the combo beats raw market odds
@@ -290,7 +300,7 @@ fitness = accuracy * 0.35 + edge_vs_market * 0.35 - false_positive_rate * 0.20 -
 **Color scheme** (consistent across all visualizations):
 - Bullish/YES: `#22c55e` (green), Bearish/NO: `#ef4444` (red), Neutral: `#6b7280` (gray)
 - Emotional bets: `#f59e0b` (amber), Rational bets: `#3b82f6` (blue), Suspicious: `#a855f7` (purple), Sandpit: `#dc2626` (dark red)
-- Method categories: S=`#a855f7`, D=`#3b82f6`, E=`#f59e0b`, T=`#22c55e`, P=`#ec4899`
+- Method categories: S=`#a855f7`, D=`#3b82f6`, E=`#f59e0b`, T=`#22c55e`, P=`#ec4899`, M=`#06b6d4`
 
 **Tech:** `streamlit` + `plotly` + `streamlit-autorefresh`. Backend reads from same SQLite DB.
 
@@ -464,6 +474,11 @@ The main Claude Code session acts as an **overseer** that delegates to specializ
 | Research & information gathering | `search-specialist` | Find API rate limits, trace data flow, investigate git history, look up library docs |
 | Complex task planning | `task-decomposer` | Plan new method implementation, design schema migration, scope a refactor |
 | Data analysis & visualization | `data-analyst` | Query bet distributions, chart wallet activity, compute method performance metrics |
+| Backtest interpretation | `backtest-analyst` | Interpret optimization results, identify method contributions, diagnose combo performance |
+| Method quality review | `method-auditor` | Check method orthogonality, validate implementations, flag dead-weight methods |
+| Threshold optimization | `threshold-tuner` | Analyze sensitivity of config constants, propose adjustments based on backtest data |
+| API reliability | `api-health-checker` | Ping endpoints, validate schemas, monitor rate limits, flag stale data |
+| Wallet deep-dives | `wallet-profiler` | Investigate individual wallet histories, cross-market behavior, rationality validation |
 | Simple code changes | **direct** (overseer) | Fix a bug, add a config constant, small refactors |
 
 ### Guidelines
@@ -476,9 +491,83 @@ The main Claude Code session acts as an **overseer** that delegates to specializ
 
 ### Agent Reference
 
-| Agent | Model | Specialty |
-|-------|-------|-----------|
-| `prompt-engineer` | opus | Crafts/refines prompts and agent definitions |
-| `search-specialist` | sonnet | Multi-source research (codebase, web, APIs, git) |
-| `task-decomposer` | sonnet | Structured work breakdown with dependencies |
-| `data-analyst` | opus | SQLite queries, plotly charts, metric tracking |
+| Agent | Model | Status | Specialty |
+|-------|-------|--------|-----------|
+| `prompt-engineer` | opus | **Active** | Crafts/refines prompts and agent definitions |
+| `search-specialist` | sonnet | **Active** | Multi-source research (codebase, web, APIs, git) |
+| `task-decomposer` | sonnet | **Active** | Structured work breakdown with dependencies |
+| `data-analyst` | opus | **Active** | SQLite queries, plotly charts, metric tracking |
+| `backtest-analyst` | opus | **Active** | Interprets optimization output, method contribution analysis, combo diagnostics |
+| `method-auditor` | sonnet | Stub | Method orthogonality, implementation validation, dead-weight detection |
+| `threshold-tuner` | sonnet | Stub | Config constant sensitivity analysis, parameter optimization proposals |
+| `api-health-checker` | haiku | Stub | Endpoint monitoring, schema validation, rate limit tracking, data freshness |
+| `wallet-profiler` | sonnet | Stub | Individual wallet investigation, cross-market behavior, rationality validation |
+
+### Agent Activation Milestones
+
+| Milestone | Trigger | Agent to Activate | Why |
+|-----------|---------|-------------------|-----|
+| **M1** | First full combinator run with M25-M28 | `backtest-analyst` | Need to interpret whether Markov methods improve fitness. **Ready now.** |
+| **M2** | Combinator consistently produces stable top-10 combos | `method-auditor` | Time to prune: which methods never appear in winners? Which are correlated? |
+| **M3** | `method-auditor` identifies threshold sensitivity issues | `threshold-tuner` | Audit reveals which constants matter most — tuner optimizes them systematically |
+| **M4** | Source data APIs integrated (FRED, NOAA, CoinGecko, ESPN) | `api-health-checker` | Going from 4 to 10+ endpoints — need automated monitoring before it becomes unmanageable |
+| **M5** | Leaderboard wallet seeding implemented (P012) | `wallet-profiler` | Deep-diving seeded wallets to validate they're genuinely sharp, not just lucky |
+
+### Backtest Analyst — Full Specification
+
+**Model:** opus (needs reasoning for nuanced interpretation)
+
+**Purpose:** Interprets combinator optimization results to answer: what's working, what's not, and what to change next. This is the feedback loop between "run the optimizer" and "make the bot better."
+
+**Capabilities:**
+1. **Combo diagnosis** — Given a combo's fitness breakdown (accuracy, edge, FPR, complexity), explain why it scores the way it does. Identify which methods contribute signal vs. which add noise.
+2. **Method contribution** — Across all tested combos, rank methods by how often they appear in top-N results. Flag methods that never appear (candidates for removal or threshold adjustment).
+3. **Category synergy** — Identify which cross-category pairings produce the best Tier 2 results. E.g., "S+M combos consistently outperform S+E combos."
+4. **Fitness trend** — Compare current optimization run to previous runs. Is fitness improving? Plateauing? Degrading?
+5. **Edge analysis** — For top picks, break down where the edge comes from: is it the bot disagreeing with the market, or is it high confidence on an already-likely outcome?
+6. **False positive diagnosis** — When FPR is high, trace which methods are producing the false signals and on which market types.
+
+**Data access:** Read-only SQLite queries on `method_results`, `markets`, `bets`, `wallets` tables. Same safety hook as `data-analyst` (`scripts/validate_readonly_query.py`).
+
+**Input format:** Overseer provides context like "analyze the latest optimization run" or "compare M-category methods against the baseline."
+
+**Output format:** Structured markdown with:
+- Summary (2-3 key findings)
+- Tables (method rankings, combo breakdowns)
+- Recommendations (specific next steps: adjust threshold X, drop method Y, investigate market type Z)
+
+**Example queries:**
+- "Analyze the top 10 combos from the latest run — do any M methods appear?"
+- "Which methods have the highest marginal fitness contribution?"
+- "Why does combo [S1,E13,M27] have high accuracy but negative edge?"
+- "Compare fitness distribution before and after adding Markov methods"
+
+### Stub Agents — Specs for Future Activation
+
+**`method-auditor`** (activate at M2)
+- Computes pairwise correlation between method signals across all tested markets
+- Flags method pairs with correlation > 0.7 (redundant in combos)
+- Validates each method's implementation matches its CLAUDE.md algorithm description
+- Reports methods that never appear in top-50 combos (dead weight)
+- Suggests category rebalancing if one category dominates or is absent from winners
+
+**`threshold-tuner`** (activate at M3)
+- For each config constant, runs sensitivity analysis: what happens to top combo fitness if the threshold shifts +/-10%, +/-25%?
+- Identifies constants with high sensitivity (small change = big fitness impact) vs. low sensitivity (can be simplified)
+- Proposes concrete value changes with expected fitness delta
+- Respects constraints: thresholds must remain physically meaningful (e.g., probability thresholds stay in 0-1)
+
+**`api-health-checker`** (activate at M4)
+- Pings all configured endpoints, reports HTTP status and response time
+- Validates response JSON schemas match expected structure (catches silent API changes)
+- Tracks rate limit headers where available, warns at 80% consumption
+- Checks data freshness: last trade timestamp vs. now, flags stale markets
+- Runs on haiku (cheapest model — this is mechanical work, not reasoning)
+
+**`wallet-profiler`** (activate at M5)
+- Given a wallet address, pulls full trade history from `bets` table
+- Computes per-market performance: win/loss, timing relative to market lifecycle, size patterns
+- Runs M25 wallet regime analysis on the wallet's history across markets
+- Cross-references with S1 (is this wallet flagged as sharp?), S4 (sandpit?)
+- Validates rationality_score against actual behavior patterns
+- Output: wallet profile card with key stats, flags, and recommendation (track/ignore/investigate)
