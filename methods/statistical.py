@@ -37,11 +37,11 @@ def t17_bayesian(
     # Public posterior: update with all bets
     public_log_odds = math.log(prior / (1 - prior))
     for b in bets:
-        weight = b.amount / 100  # normalize
+        weight = b.amount / config.T17_AMOUNT_NORMALIZER
         if b.side == "YES":
-            public_log_odds += weight * 0.1
+            public_log_odds += weight * config.T17_UPDATE_STEP
         else:
-            public_log_odds -= weight * 0.1
+            public_log_odds -= weight * config.T17_UPDATE_STEP
 
     public_posterior = 1 / (1 + math.exp(-public_log_odds))
 
@@ -51,14 +51,14 @@ def t17_bayesian(
     for b in bets:
         w = wallets.get(b.wallet)
         rationality = w.rationality_score if w else 0.5
-        if rationality < 0.4:
+        if rationality < config.T17_RATIONALITY_CUTOFF:
             continue  # skip emotional bets
         smart_count += 1
-        weight = b.amount / 100 * rationality
+        weight = b.amount / config.T17_AMOUNT_NORMALIZER * rationality
         if b.side == "YES":
-            smart_log_odds += weight * 0.1
+            smart_log_odds += weight * config.T17_UPDATE_STEP
         else:
-            smart_log_odds -= weight * 0.1
+            smart_log_odds -= weight * config.T17_UPDATE_STEP
 
     smart_posterior = 1 / (1 + math.exp(-smart_log_odds))
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import math
-from collections import defaultdict
+from collections import defaultdict, deque
 from datetime import timedelta
 
 import numpy as np
@@ -146,20 +146,26 @@ def p22_herding(
     sorted_bets = sorted(bets, key=lambda b: b.timestamp)
     window = timedelta(minutes=config.P22_TIME_WINDOW_MINUTES)
 
-    # Sliding window: count max same-side bets in any window
+    # Sliding window O(n): two-pointer with deque tracking window contents
     max_cluster_size = 0
     max_cluster_side = "YES"
+    yes_in_window = 0
+    no_in_window = 0
+    left = 0
 
-    for i, anchor in enumerate(sorted_bets):
-        yes_in_window = 0
-        no_in_window = 0
-        for j in range(i, len(sorted_bets)):
-            if sorted_bets[j].timestamp - anchor.timestamp > window:
-                break
-            if sorted_bets[j].side == "YES":
-                yes_in_window += 1
+    for right, bet in enumerate(sorted_bets):
+        if bet.side == "YES":
+            yes_in_window += 1
+        else:
+            no_in_window += 1
+
+        # Shrink window from the left until it fits
+        while sorted_bets[left].timestamp < bet.timestamp - window:
+            if sorted_bets[left].side == "YES":
+                yes_in_window -= 1
             else:
-                no_in_window += 1
+                no_in_window -= 1
+            left += 1
 
         cluster_size = max(yes_in_window, no_in_window)
         if cluster_size > max_cluster_size:

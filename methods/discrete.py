@@ -141,7 +141,7 @@ def d7_pigeonhole(
     # (using global win rates as proxy for track record)
     qualified = {
         addr: w for addr, w in wallets.items()
-        if w.total_bets >= config.S1_MIN_RESOLVED_BETS
+        if w.total_bets >= config.D7_MIN_BETS
     }
 
     sharp_count = sum(1 for w in qualified.values() if w.win_rate > 0.65)

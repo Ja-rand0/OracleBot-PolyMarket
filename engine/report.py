@@ -96,12 +96,20 @@ def generate_report(
         signal, confidence, meta = _run_best_combo(best_methods, market, market_bets, mw)
         emotion_ratio = meta.get("emotion_ratio", 0.0)
 
-        # Current market price (YES probability) from last 20 trades.
-        # New data has odds already normalized; old data may have mixed
-        # YES/NO token prices so we use side as a heuristic.
-        recent = sorted(market_bets, key=lambda b: b.timestamp)[-20:]
-        yes_probs = [b.odds if b.side == "YES" else (1 - b.odds) for b in recent]
-        market_price = sum(yes_probs) / len(yes_probs) if yes_probs else 0.5
+        # Current market price (YES probability) from recent trades.
+        # Volume-weighted average reduces noise from small trades on thin markets.
+        recent = sorted(market_bets, key=lambda b: b.timestamp)[-config.REPORT_PRICE_RECENT_TRADES:]
+        if len(recent) >= config.REPORT_PRICE_MIN_TRADES:
+            total_vol = sum(b.amount for b in recent)
+            if total_vol > 0:
+                market_price = sum(
+                    (b.odds if b.side == "YES" else (1 - b.odds)) * b.amount
+                    for b in recent
+                ) / total_vol
+            else:
+                market_price = 0.5
+        else:
+            market_price = 0.5
 
         market_scores.append((market, emotion_ratio, signal, confidence, len(market_bets), market_price))
 

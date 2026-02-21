@@ -238,15 +238,17 @@ def s4_sandpit_filter(
 
         # Pattern: won big once then consistently loses
         # Approximation: high volume but very low win rate with enough bets
-        if w.total_bets >= 10 and w.win_rate < 0.25 and w.total_volume > 5000:
+        if (w.total_bets >= config.S4_SANDPIT_MIN_BETS
+                and w.win_rate < config.S4_SANDPIT_MAX_WIN_RATE
+                and w.total_volume > config.S4_SANDPIT_MIN_VOLUME):
             sandpit_wallets.add(addr)
             continue
 
         # Pattern: brand new wallet with suspiciously large first bet
         wallet_bets = [b for b in bets if b.wallet == addr]
-        if wallet_bets and w.total_bets <= 3:
+        if wallet_bets and w.total_bets <= config.S4_NEW_WALLET_MAX_BETS:
             max_bet = max(b.amount for b in wallet_bets)
-            if max_bet > 2000:
+            if max_bet > config.S4_NEW_WALLET_LARGE_BET:
                 sandpit_wallets.add(addr)
                 continue
 

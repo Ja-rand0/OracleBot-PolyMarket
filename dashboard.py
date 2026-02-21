@@ -26,6 +26,7 @@ from data.models import Bet, Wallet
 from data.scraper import fetch_markets, fetch_resolved_markets, fetch_trades_for_market
 from engine.combinator import run_full_optimization
 from engine.report import generate_report
+from main import update_wallet_stats
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -114,7 +115,7 @@ def collect_data(conn) -> dict:
                     total_trades += len(trades)
                     trade_markets += 1
             except Exception:
-                pass
+                log.exception("Failed to fetch trades for market %s", m.id[:16])
             progress.advance(task)
 
     stats["trades"] = total_trades
@@ -145,84 +146,11 @@ def collect_data(conn) -> dict:
                 if trades:
                     db.insert_bets_bulk(conn, trades)
             except Exception:
-                pass
+                log.exception("Failed to fetch trades for resolved market %s", m.id[:16])
             progress.advance(task)
 
     console.print()
     return stats
-
-
-# ---------------------------------------------------------------------------
-# Wallet stats (batched)
-# ---------------------------------------------------------------------------
-def update_wallet_stats(conn) -> dict[str, Wallet]:
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT
-            b.wallet,
-            MIN(b.timestamp) AS first_seen,
-            COUNT(*) AS total_bets,
-            SUM(b.amount) AS total_volume,
-            SUM(CASE WHEN m.outcome IS NOT NULL AND b.side = m.outcome
-                THEN 1 ELSE 0 END) AS wins,
-            SUM(CASE WHEN m.outcome IS NOT NULL
-                THEN 1 ELSE 0 END) AS resolved_bets,
-            SUM(CASE WHEN b.amount >= 50
-                AND CAST(b.amount AS INTEGER) % 50 = 0
-                THEN 1 ELSE 0 END) AS round_bets
-        FROM bets b
-        LEFT JOIN markets m ON b.market_id = m.id AND m.resolved = 1
-        GROUP BY b.wallet
-    """)
-
-    wallets: dict[str, Wallet] = {}
-    bulk = []
-    for row in cur.fetchall():
-        addr = row[0]
-        total_bets = row[2]
-        total_volume = row[3] or 0.0
-        wins = row[4] or 0
-        resolved_bets = row[5] or 0
-        round_bets = row[6] or 0
-
-        win_rate = wins / resolved_bets if resolved_bets > 0 else 0.0
-        rr = round_bets / total_bets if total_bets > 0 else 0.0
-        rationality = max(0.0, min(1.0, win_rate * 0.5 + (1 - rr) * 0.3 + 0.2))
-
-        try:
-            fs = datetime.strptime(row[1], "%Y-%m-%dT%H:%M:%SZ")
-        except (ValueError, TypeError):
-            fs = datetime.now()
-
-        w = Wallet(
-            address=addr, first_seen=fs, total_bets=total_bets,
-            total_volume=total_volume, win_rate=win_rate,
-            rationality_score=rationality,
-        )
-        wallets[addr] = w
-        bulk.append((
-            w.address, fs.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            w.total_bets, w.total_volume,
-            w.win_rate, w.rationality_score,
-            w.flagged_suspicious, w.flagged_sandpit,
-        ))
-
-    conn.executemany(
-        """INSERT INTO wallets
-               (address, first_seen, total_bets, total_volume,
-                win_rate, rationality_score, flagged_suspicious, flagged_sandpit)
-           VALUES (?,?,?,?,?,?,?,?)
-           ON CONFLICT(address) DO UPDATE SET
-               total_bets=excluded.total_bets,
-               total_volume=excluded.total_volume,
-               win_rate=excluded.win_rate,
-               rationality_score=excluded.rationality_score,
-               flagged_suspicious=excluded.flagged_suspicious,
-               flagged_sandpit=excluded.flagged_sandpit""",
-        bulk,
-    )
-    conn.commit()
-    return wallets
 
 
 # ---------------------------------------------------------------------------

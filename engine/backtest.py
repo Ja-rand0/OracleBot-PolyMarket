@@ -84,7 +84,7 @@ def backtest_combo(
                 if result.filtered_bets:
                     current_bets = result.filtered_bets
             except Exception:
-                pass
+                log.exception("Method %s failed on market %s", method_id, market.id[:16])
 
         if not results:
             continue
