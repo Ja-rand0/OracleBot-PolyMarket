@@ -116,7 +116,7 @@ def generate_report(
     # Filter out markets at extreme prices — these are essentially settled
     # and the bot has no real information to disagree with.
     market_scores = [
-        m for m in market_scores if 0.05 <= m[5] <= 0.95
+        m for m in market_scores if 0.05 < m[5] < 0.95
     ]
 
     # Rank by edge: how much the bot disagrees with the market price.
