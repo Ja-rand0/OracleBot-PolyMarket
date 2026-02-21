@@ -70,6 +70,7 @@ def generate_report(
     (Market, emotion_ratio, signal, confidence, n_bets) sorted by conviction."""
 
     today = datetime.utcnow().strftime("%Y-%m-%d")
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d_%H%M")
 
     # Get best combo
     top_combos = db.get_top_combos(conn, limit=5)
@@ -229,7 +230,7 @@ def generate_report(
     report = "\n".join(lines)
 
     # Write to file
-    filepath = os.path.join(output_dir, f"report_{today}.md")
+    filepath = os.path.join(output_dir, f"report_{timestamp}.md")
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(report)
 
