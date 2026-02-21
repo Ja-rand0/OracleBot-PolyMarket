@@ -7,3 +7,6 @@ python-louvain
 scikit-learn
 schedule
 rich
+streamlit>=1.30.0
+streamlit-autorefresh>=1.0.1
+plotly>=5.18.0
