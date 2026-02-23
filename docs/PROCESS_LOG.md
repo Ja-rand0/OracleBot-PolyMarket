@@ -333,3 +333,45 @@
 - `method-auditor` and `threshold-tuner` promoted from Stub → Active
 
 **Debug-doctor validation result:** WARN (no regressions; dead import flagged and resolved)
+
+### Session 8 — M3 Threshold Tuning (2026-02-23)
+
+**Milestone:** M3 — threshold-tuner agent activated after method-auditor (M2) completed.
+
+**What was done:**
+- Launched `threshold-tuner` agent against the top combo: D5, T17, M26, P20 (baseline fitness=0.2587)
+- 60 resolved markets tested (drawn from 8037 total), 12 constants analyzed
+- Agent identified 3 high-sensitivity and 2 medium-sensitivity constants; all others low/zero sensitivity
+
+**Changes applied to config.py:**
+
+| Constant | Old | New | Fitness Delta | Sensitivity |
+|----------|-----|-----|---------------|-------------|
+| `M26_TRENDING_THRESHOLD` | 0.60 | 0.33 | +0.039 to +0.047 | High |
+| `T17_RATIONALITY_CUTOFF` | 0.40 | 0.58 | +0.022 to +0.023 | High |
+| `P20_DEVIATION_THRESHOLD` | 0.10 | 0.02 | +0.023 | High |
+| `T17_AMOUNT_NORMALIZER` | 1000.0 | 50.0 | +0.005 | Medium |
+| `T17_UPDATE_STEP` | 0.10 | 0.80 | +0.004 to +0.006 | Medium |
+
+**Combined fitness improvement (all three high-sensitivity changes):** 0.2587 → 0.3066 (+0.047914)
+
+**Root causes:**
+- M26_TRENDING_THRESHOLD=0.60 was above the Markov self-transition probability for most markets → M26 never fired, returned zero-signal. Lowering to 0.33 (near the 3-state uniform floor) activates the method.
+- T17_RATIONALITY_CUTOFF=0.40 was below median wallet rationality → smart pool included average bettors, diluting the Bayesian divergence signal.
+- P20_DEVIATION_THRESHOLD=0.10 required 10% VWAP deviation → too conservative; 2% threshold captures genuine but moderate Nash deviations (step function at ≤0.025).
+- T17_AMOUNT_NORMALIZER=1000 made $100 bets contribute only 0.1 weight units → posterior barely moved. At 50, a $100 bet = 2.0 weight units.
+- T17_UPDATE_STEP=0.10 barely moved the Bayesian posterior per bet. At 0.80, smart-wallet signals produce meaningful divergence from the public prior.
+
+**Not changed:**
+- `M26_LOW_THRESHOLD`: +0.007 alone but −0.008 when combined with M26_TRENDING_THRESHOLD change (interaction effect)
+- `S1_MIN_RESOLVED_BETS`, `S1_STDDEV_THRESHOLD`, `T19_ZSCORE_THRESHOLD`: zero sensitivity (methods not in top-4 combo)
+- `M26_HIGH_THRESHOLD`: zero sensitivity (HIGH state never triggered in test set)
+- `M26_NUM_WINDOWS`: insensitive 5–8; values ≥10 raise FPR
+- `BACKTEST_CUTOFF_FRACTION`: zero delta across 0.50–0.90 range
+
+**Debug-doctor validation result:** PASS (T17, P20, M26 all return valid MethodResults; no import errors, no overflow, no division-by-zero; test suite DB-lock is pre-existing)
+
+**Caveats for next session:**
+- T17_AMOUNT_NORMALIZER and T17_UPDATE_STEP not tested jointly with high-sensitivity changes — run a combined test next time the combinator runs
+- 0.33 trending threshold is exactly at the 3-state uniform floor — monitor FPR on M26 in the next full combinator run
+- S1/T19 constants need tuning against combos that include those methods (not tested here)

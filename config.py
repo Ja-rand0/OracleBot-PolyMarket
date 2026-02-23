@@ -29,6 +29,7 @@ BACKTEST_CUTOFF_FRACTION = 0.70   # use first 70% of market lifespan
 TIER1_TOP_PER_CATEGORY   = 5
 TIER2_TOP_OVERALL        = 10
 SCRAPE_INTERVAL_MINUTES  = 30
+ANALYZE_INTERVAL_HOURS   = 6
 TOTAL_METHODS            = 28
 
 DB_PATH = "polymarket.db"
@@ -83,9 +84,9 @@ E16_KL_THRESHOLD            = 0.5
 # Method thresholds — T (Statistical)
 # ---------------------------------------------------------------------------
 T17_PRIOR_WEIGHT        = 1.0
-T17_AMOUNT_NORMALIZER   = 1000.0
-T17_UPDATE_STEP         = 0.1
-T17_RATIONALITY_CUTOFF  = 0.4
+T17_AMOUNT_NORMALIZER   = 50.0   # was 1000.0, +0.005 fitness (M3 tuning 2026-02-23)
+T17_UPDATE_STEP         = 0.80   # was 0.10, +0.005 fitness (M3 tuning 2026-02-23)
+T17_RATIONALITY_CUTOFF  = 0.58   # was 0.40, +0.022 fitness (M3 tuning 2026-02-23)
 
 T18_CHI_SQUARED_PVALUE  = 0.05
 
@@ -94,7 +95,7 @@ T19_ZSCORE_THRESHOLD    = 2.5
 # ---------------------------------------------------------------------------
 # Method thresholds — P (Psychological)
 # ---------------------------------------------------------------------------
-P20_DEVIATION_THRESHOLD = 0.10
+P20_DEVIATION_THRESHOLD = 0.02   # was 0.10, +0.023 fitness (M3 tuning 2026-02-23)
 
 P21_LOW_PROB  = 0.15
 P21_HIGH_PROB = 0.85
@@ -119,7 +120,7 @@ M25_CONFIDENCE_CAP         = 10
 M26_NUM_WINDOWS       = 5
 M26_LOW_THRESHOLD     = 0.35
 M26_HIGH_THRESHOLD    = 0.65
-M26_TRENDING_THRESHOLD = 0.60
+M26_TRENDING_THRESHOLD = 0.33   # was 0.60, +0.039 to +0.047 fitness (M3 tuning 2026-02-23)
 
 M27_NUM_WINDOWS        = 5
 M27_FLOW_THRESHOLD     = 0.5
