@@ -37,12 +37,12 @@ def p20_nash_deviation(
     if total_vol == 0:
         return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets)
 
-    vwap = sum((b.odds if b.side == "YES" else (1 - b.odds)) * b.amount for b in bets) / total_vol
+    vwap = sum(b.odds * b.amount for b in bets) / total_vol
 
     # Latest marginal price (last N bets)
     sorted_bets = sorted(bets, key=lambda b: b.timestamp)
     recent = sorted_bets[-min(10, len(sorted_bets)):]
-    recent_price = float(np.mean([(b.odds if b.side == "YES" else (1 - b.odds)) for b in recent]))
+    recent_price = float(np.mean([b.odds for b in recent]))
 
     deviation = recent_price - vwap
 

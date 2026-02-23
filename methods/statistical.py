@@ -43,6 +43,7 @@ def t17_bayesian(
         else:
             public_log_odds -= weight * config.T17_UPDATE_STEP
 
+    public_log_odds = max(-500.0, min(500.0, public_log_odds))
     public_posterior = 1 / (1 + math.exp(-public_log_odds))
 
     # Smart posterior: update with rational bets only
@@ -60,6 +61,7 @@ def t17_bayesian(
         else:
             smart_log_odds -= weight * config.T17_UPDATE_STEP
 
+    smart_log_odds = max(-500.0, min(500.0, smart_log_odds))
     smart_posterior = 1 / (1 + math.exp(-smart_log_odds))
 
     # Signal: where smart money points

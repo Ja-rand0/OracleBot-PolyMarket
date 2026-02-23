@@ -64,8 +64,8 @@ def _time_windows(bets: list[Bet], num_windows: int) -> list[list[Bet]]:
 
 
 def _normalize_odds(bet: Bet) -> float:
-    """Return YES probability regardless of bet side."""
-    return bet.odds if bet.side == "YES" else (1.0 - bet.odds)
+    """Return YES probability (odds always stores YES probability post-B001 fix)."""
+    return bet.odds
 
 
 # ---------------------------------------------------------------------------

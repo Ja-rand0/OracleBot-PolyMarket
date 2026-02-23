@@ -103,8 +103,7 @@ def backtest_combo(
         if confidence > 0.3:
             high_confidence_preds += 1
 
-        # Normalize odds to YES probability (handles old mixed data)
-        yes_probs = [b.odds if b.side == "YES" else (1 - b.odds) for b in visible_bets]
+        yes_probs = [b.odds for b in visible_bets]
         market_odds = median(yes_probs) if yes_probs else 0.5
         market_implied = "YES" if market_odds > 0.5 else "NO"
         if predicted == actual and market_implied != actual:

@@ -103,10 +103,7 @@ def generate_report(
         if len(recent) >= config.REPORT_PRICE_MIN_TRADES:
             total_vol = sum(b.amount for b in recent)
             if total_vol > 0:
-                market_price = sum(
-                    (b.odds if b.side == "YES" else (1 - b.odds)) * b.amount
-                    for b in recent
-                ) / total_vol
+                market_price = sum(b.odds * b.amount for b in recent) / total_vol
             else:
                 market_price = 0.5
         else:
