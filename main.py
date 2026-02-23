@@ -115,6 +115,7 @@ def collect_data(conn) -> None:
     markets = fetch_markets(active_only=True)
     for m in markets:
         db.upsert_market(conn, m)
+    conn.commit()
     log.info("Stored %d active markets", len(markets))
 
     # Fetch trades for a capped subset of active markets — highest volume first
@@ -146,6 +147,7 @@ def collect_data(conn) -> None:
     resolved = fetch_resolved_markets(max_pages=10)
     for m in resolved:
         db.upsert_market(conn, m)
+    conn.commit()
     log.info("Stored %d resolved markets", len(resolved))
 
     resolved_fetched = 0

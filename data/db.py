@@ -159,7 +159,6 @@ def upsert_market(conn: sqlite3.Connection, m: Market) -> None:
         """,
         (m.id, m.title, m.description, _ts(m.end_date), m.resolved, m.outcome, _ts(m.created_at)),
     )
-    conn.commit()
 
 
 def get_market(conn: sqlite3.Connection, market_id: str) -> Optional[Market]:
