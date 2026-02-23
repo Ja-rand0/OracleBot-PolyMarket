@@ -309,3 +309,27 @@
 | B028 | 2026-02-22 | `markov.py` | `_normalize_odds()` inverting post-B001 NO odds | Simplified to `return bet.odds` |
 | B029 | 2026-02-22 | `statistical.py` T17 | `math.exp()` overflow on high-volume markets | Clamp log-odds to [-500, 500] before sigmoid |
 | B030 | 2026-02-22 | `db.py` / `main.py` | `upsert_market()` committed per-row (13k+ commits/cycle) | Removed commit from function; batch after loop in main.py |
+| B031 | 2026-02-23 | `engine/combinator.py` | tier3 hill-climb called `get_all_method_ids()` — excluded methods could re-enter via hill-climb | Build `active_method_ids` from CATEGORIES instead; removed dead import |
+
+---
+
+### Session 7 — Method Pruning, Agent Expansion (2026-02-23)
+
+**Method pruning (auditor findings applied):**
+- S2 removed from active CATEGORIES: interchangeable with S1, subadditive in combos
+- D6 removed from active CATEGORIES: never appears in top-25, adds graph overhead
+- M25 removed from active CATEGORIES: actively hurts M26+M28 combos
+- All 3 methods remain registered in METHODS (count stays 28) for future re-activation
+- CATEGORIES active count: 28 → 25
+
+**Combinator fix (B031):**
+- `engine/combinator.py` tier3 hill-climb now builds `active_method_ids` from CATEGORIES
+  instead of calling `get_all_method_ids()` — ensures excluded methods don't re-enter via hill-climb
+- Removed dead import `from methods import get_all_method_ids`
+
+**Agent files created:**
+- `.claude/agents/debug-doctor.md` — post-change validation, log analysis, bug documentation
+- `.claude/agents/backtest-analyst.md` — combo diagnosis, method contribution, fitness trend
+- `method-auditor` and `threshold-tuner` promoted from Stub → Active
+
+**Debug-doctor validation result:** WARN (no regressions; dead import flagged and resolved)

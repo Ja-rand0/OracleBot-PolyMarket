@@ -24,12 +24,12 @@ MethodFn = Callable[[Market, list[Bet], dict[str, Wallet]], MethodResult]
 METHODS: dict[str, tuple[MethodFn, str, str]] = {}
 
 CATEGORIES = {
-    "S": ["S1", "S2", "S3", "S4"],
-    "D": ["D5", "D6", "D7", "D8", "D9"],
+    "S": ["S1", "S3", "S4"],        # S2 removed: interchangeable with S1, subadditive
+    "D": ["D5", "D7", "D8", "D9"],  # D6 removed: never top-25, adds graph overhead
     "E": ["E10", "E11", "E12", "E13", "E14", "E15", "E16"],
     "T": ["T17", "T18", "T19"],
     "P": ["P20", "P21", "P22", "P23", "P24"],
-    "M": ["M25", "M26", "M27", "M28"],
+    "M": ["M26", "M27", "M28"],     # M25 removed: actively hurts M26+M28 combos
 }
 
 

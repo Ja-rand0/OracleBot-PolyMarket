@@ -184,8 +184,6 @@ def run_full_optimization(
     wallets: dict[str, Wallet],
 ) -> list[ComboResults]:
     """Run the complete Tier 1 -> 2 -> 3 optimization pipeline."""
-    from methods import get_all_method_ids
-
     log.info("=== Starting full optimization ===")
 
     t1 = tier1(conn, markets, bets_by_market, wallets)
@@ -194,7 +192,9 @@ def run_full_optimization(
     t2 = tier2(conn, t1, markets, bets_by_market, wallets)
     db.flush_method_results(conn)
 
-    t3 = tier3(conn, t2, get_all_method_ids(), markets, bets_by_market, wallets)
+    # Use only CATEGORIES-active methods for hill-climbing (respects exclusion list)
+    active_method_ids = [m for ids in CATEGORIES.values() for m in ids]
+    t3 = tier3(conn, t2, active_method_ids, markets, bets_by_market, wallets)
     db.flush_method_results(conn)
 
     # Keep only the top 50 results, delete the rest

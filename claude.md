@@ -156,11 +156,11 @@ confidence = sum(r.confidence for r in results) / len(results)
 | ID | Name | Detects |
 |----|------|---------|
 | **S1** | Win Rate Outlier | Wallets with statistically abnormal win rates |
-| **S2** | Bet Timing | Late-stage high-conviction bets (insider timing) |
+| **S2** | Bet Timing | Late-stage high-conviction bets (insider timing) *(excluded)* |
 | **S3** | Coordination Clustering | Coordinated wallet groups (Louvain, networkx+louvain) |
 | **S4** | Sandpit Filter | Bait/trap accounts — removes them from signal |
 | **D5** | Vacuous Truth | Markets already near-certain (≥0.95 or ≤0.05 odds) |
-| **D6** | PageRank | Influential wallets in the copy-trading graph (networkx) |
+| **D6** | PageRank | Influential wallets in the copy-trading graph (networkx) *(excluded)* |
 | **D7** | Pigeonhole Noise | Too many "sharp" wallets → noise discount |
 | **D8** | Boolean SAT | Structural bet distribution skew (≥80% one side) |
 | **D9** | Set Partition | Separates rational bets from emotional (master filter) |
@@ -179,7 +179,7 @@ confidence = sum(r.confidence for r in results) / len(results)
 | **P22** | Herding | Temporal clustering of same-side bets (O(n) two-pointer) |
 | **P23** | Anchoring | Market price stuck on the first large bet's anchor |
 | **P24** | Wisdom vs Madness | % emotional bets → market exploitability meta-signal |
-| **M25** | Wallet Regime | Bet size escalation per wallet (informed accumulation) |
+| **M25** | Wallet Regime | Bet size escalation per wallet (informed accumulation) *(excluded)* |
 | **M26** | Market Phases | Trending vs. mean-reverting price dynamics (Markov) |
 | **M27** | Flow Momentum | Persistent directional bet flow vs. oscillation (Markov) |
 | **M28** | Smart-Follow | Smart money leading retail in temporal order (Markov) |
@@ -425,8 +425,8 @@ method_results(id INTEGER PK AUTO, combo_id UNIQUE, methods_used JSON, accuracy,
 | `task-decomposer` | sonnet | **Active** | Requirements clarification (Phase 0) + structured work breakdown with dependencies |
 | `data-analyst` | opus | **Active** | SQLite queries, plotly charts, metric tracking |
 | `backtest-analyst` | opus | **Active** | Interprets optimization output, method contribution analysis |
-| `method-auditor` | sonnet | Stub | Method orthogonality, implementation validation |
-| `threshold-tuner` | sonnet | Stub | Config constant sensitivity analysis |
+| `method-auditor` | sonnet | **Active** | Method orthogonality, implementation validation |
+| `threshold-tuner` | sonnet | **Active** | Config constant sensitivity analysis |
 | `api-health-checker` | haiku | Stub | Endpoint monitoring, schema validation, rate limit tracking |
 | `wallet-profiler` | sonnet | Stub | Individual wallet investigation, rationality validation |
 | `debug-doctor` | sonnet | **Active** | Log analysis, test execution, error tracing, bug documentation |
@@ -435,8 +435,8 @@ method_results(id INTEGER PK AUTO, combo_id UNIQUE, methods_used JSON, accuracy,
 
 | Milestone | Trigger | Agent | Why |
 |-----------|---------|-------|-----|
-| **M1** | First full combinator run with M25-M28 | `backtest-analyst` | Interpret whether Markov methods improve fitness. **Ready now.** |
-| **M2** | Stable top-10 combos | `method-auditor` | Prune: which methods never appear in winners? Which are correlated? |
+| **M1** | First full combinator run with M25-M28 | `backtest-analyst` | Interpret whether Markov methods improve fitness. **Done (Session 5).** |
+| **M2** | Stable top-10 combos | `method-auditor` | Prune: which methods never appear in winners? Which are correlated? **Done (Session 7).** |
 | **M3** | `method-auditor` finds threshold issues | `threshold-tuner` | Optimize constants systematically |
 | **M4** | Source data APIs integrated | `api-health-checker` | Monitor 10+ endpoints before they become unmanageable |
 | **M5** | Leaderboard wallet seeding implemented | `wallet-profiler` | Validate seeded wallets are genuinely sharp |
