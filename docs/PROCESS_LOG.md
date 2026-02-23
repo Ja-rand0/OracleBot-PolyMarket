@@ -175,6 +175,49 @@
 - `main.py` — persist_graph_relationships() call
 - `dashboard.py` — persist_graph_relationships() call
 
+### Session 6 — B001 Residue Fix, Data Pipeline Improvements (2026-02-22)
+
+**Root cause confirmed (B001 residue):**
+- Backtest-analyst identified that the Feb 10 edge of 10.3% was an artifact of corrupted odds data
+- Five code paths were applying `(1 - b.odds)` for NO bets at read-time, double-inverting bets stored by the post-B001 scraper fix
+- Only 2/25 markets had genuine edge; real max edge was ~8%
+- Additionally, 11 stale method_results from Feb 10 were computed on corrupted data
+
+**Data wipe + re-scrape:**
+- Cleared 2,294,928 bets and 50 method_results from DB (markets, wallets, wallet_relationships untouched)
+- Re-scraped: 5,000 active markets + 8,037 resolved markets, 238,019 clean bets across 82 markets
+- New top combo post-wipe: `D5, M26, P20, T17` at fitness 0.3074 (90.1% accuracy, 2.3% edge, 0% FPR)
+
+**Bug fixes applied:**
+- B024: Removed double-inversion from `engine/backtest.py:107` — `yes_probs` no longer applies `1 - b.odds` for NO bets
+- B025: Removed double-inversion from `engine/report.py:106` — VWAP market price estimation fixed
+- B026: Removed double-inversion from `methods/psychological.py:40` — P20 VWAP fixed
+- B027: Removed double-inversion from `methods/psychological.py:45` — P20 recent_price fixed
+- B028: Simplified `methods/markov.py:68` `_normalize_odds()` — now returns `bet.odds` directly
+- B029: T17 Bayesian sigmoid overflow — clamped `public_log_odds` and `smart_log_odds` to [-500, 500] before `math.exp()` (`methods/statistical.py`)
+- B030: Market upserts committed per-row (5k + 8k commits/cycle) — removed `conn.commit()` from `upsert_market()`, batch commit in `main.py` after each loop
+
+**Data pipeline improvements:**
+- `data/models.py` — added `volume: float = 0.0` field to `Market` dataclass (not persisted to DB)
+- `data/scraper.py` — `_parse_gamma_market()` now parses `volumeNum`/`volume` from Gamma API response
+- `main.py` — active markets sorted by volume descending before `MAX_ACTIVE_TRADE_FETCHES=500` cap, ensuring highest-volume markets are always fetched first
+
+**P016/P017 confirmed already fixed (stale entries removed from CLAUDE.md):**
+- P22 dynamic cluster scaling (`same_side_total / num_windows`) was already implemented
+- E10 volume-based confidence (`loyal_volume / total_volume * 2`) was already implemented
+
+**Files modified:**
+- `engine/backtest.py` — remove NO-bet inversion
+- `engine/report.py` — remove NO-bet inversion in VWAP
+- `methods/psychological.py` — P20 VWAP + recent_price inversion removed
+- `methods/markov.py` — `_normalize_odds()` simplified
+- `methods/statistical.py` — T17 sigmoid clamp
+- `data/models.py` — Market.volume field
+- `data/scraper.py` — parse volumeNum from Gamma API
+- `data/db.py` — removed per-row commit from upsert_market
+- `main.py` — volume-sort before cap + batch commits after market loops
+- `claude.md` — removed stale P016/P017 known issues
+
 ---
 
 ## Architecture Decisions Record
@@ -201,7 +244,7 @@
 | Combinator pipeline working | Done | Tier 1→2→3 with pruning |
 | Dashboard live | Done | Rich terminal UI with picks, combos, wallet alerts |
 | Caretaker watchdog | Done | Auto-restart on crash with backoff |
-| Bug fixes pass | Done | 17 bugs fixed (B001-B017), integrity rules established |
+| Bug fixes pass | Done | 30 bugs fixed (B001-B030), integrity rules established |
 | Agent system deployed | Done | 4 agents + safety hook + overseer routing |
 | CLAUDE.md comprehensive | Done | Full documentation with method details + bug tracking |
 | config.py reconstructed | Done | Reconstructed from bytecode via `dis`/`marshal` |
@@ -253,3 +296,16 @@
 | B015 | — | `discrete.py` D7 | D7 used `S1_MIN_RESOLVED_BETS` instead of its own threshold | Added `D7_MIN_BETS` to config.py |
 | B016 | — | `report.py` | Market price used simple average instead of VWAP | Now uses volume-weighted average with `REPORT_PRICE_RECENT_TRADES` and `REPORT_PRICE_MIN_TRADES` |
 | B017 | — | `psychological.py` P22 | O(n^2) sliding window for herding detection | Replaced with O(n) two-pointer approach |
+| B018 | 2026-02-22 | `discrete.py` D8 | Hardcoded `confidence=0.2` | Replaced with `abs(yes_ratio - 0.5) * 2` |
+| B019 | 2026-02-22 | `statistical.py` T18 | Signal hardcoded `0.0` regardless of suspicious result | Now directional from YES/NO volume when `is_suspicious=True` |
+| B020 | 2026-02-22 | `psychological.py` P20 | VWAP/recent_price not normalizing NO-side odds | Added `(1 - b.odds)` for NO bets (later superseded by B026/B027) |
+| B021 | 2026-02-22 | `psychological.py` P22 | `expected_cluster` formula wrong; non-herding confidence was 0.2 | Fixed formula; non-herding confidence set to 0.0 |
+| B022 | 2026-02-22 | `config.py` D7 | `D7_MIN_BETS` too high (10) — sharp_count always 0 | Lowered to 3 |
+| B023 | 2026-02-22 | `config.py` E10 | `E10_MIN_MARKETS` too high (5) — most wallets skipped | Lowered to 2 |
+| B024 | 2026-02-22 | `backtest.py` | Double-inversion: `1 - b.odds` applied to post-B001 NO bets | Removed inversion — `b.odds` always stores YES probability |
+| B025 | 2026-02-22 | `report.py` | Double-inversion in VWAP market price estimation | Removed inversion |
+| B026 | 2026-02-22 | `psychological.py` P20 | Double-inversion in P20 VWAP (introduced by B020) | Removed inversion |
+| B027 | 2026-02-22 | `psychological.py` P20 | Double-inversion in P20 recent_price | Removed inversion |
+| B028 | 2026-02-22 | `markov.py` | `_normalize_odds()` inverting post-B001 NO odds | Simplified to `return bet.odds` |
+| B029 | 2026-02-22 | `statistical.py` T17 | `math.exp()` overflow on high-volume markets | Clamp log-odds to [-500, 500] before sigmoid |
+| B030 | 2026-02-22 | `db.py` / `main.py` | `upsert_market()` committed per-row (13k+ commits/cycle) | Removed commit from function; batch after loop in main.py |
