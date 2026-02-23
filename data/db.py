@@ -321,6 +321,19 @@ def upsert_relationship(conn: sqlite3.Connection, rel: WalletRelationship) -> No
         """,
         (rel.wallet_a, rel.wallet_b, rel.relationship_type, rel.confidence),
     )
+
+
+def upsert_relationships_batch(conn: sqlite3.Connection, rels: list) -> None:
+    conn.executemany(
+        """
+        INSERT INTO wallet_relationships (wallet_a, wallet_b, relationship_type, confidence)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(wallet_a, wallet_b) DO UPDATE SET
+            relationship_type=excluded.relationship_type,
+            confidence=MAX(confidence, excluded.confidence)
+        """,
+        [(r.wallet_a, r.wallet_b, r.relationship_type, r.confidence) for r in rels],
+    )
     conn.commit()
 
 

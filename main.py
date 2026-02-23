@@ -20,8 +20,8 @@ log = logging.getLogger("main")
 
 # Max active markets to fetch trades for per cycle (avoid hammering API)
 MAX_ACTIVE_TRADE_FETCHES = 500
-# Max resolved markets to fetch trades for per cycle
-MAX_RESOLVED_TRADE_FETCHES = 100
+# Max resolved markets to fetch trades for per cycle (bumped to build backtest set faster)
+MAX_RESOLVED_TRADE_FETCHES = 500
 # Min bets for a resolved market to be useful in backtesting
 MIN_BETS_FOR_BACKTEST = 5
 
@@ -141,8 +141,8 @@ def collect_data(conn) -> None:
     log.info("Collected %d new trades from %d markets (fetched %d of %d)",
              total_trades, markets_with_trades, fetched, len(markets))
 
-    # Fetch resolved markets for backtesting
-    resolved = fetch_resolved_markets(max_pages=3)
+    # Fetch resolved markets for backtesting (10 pages = up to 10k market metadata)
+    resolved = fetch_resolved_markets(max_pages=10)
     for m in resolved:
         db.upsert_market(conn, m)
     log.info("Stored %d resolved markets", len(resolved))
@@ -210,6 +210,9 @@ def run_analysis(conn) -> None:
 
     generate_report(conn, active_with_data, active_bets, wallets, output_dir='reports')  # returns (text, picks)
 
+    from engine.relationships import persist_graph_relationships
+    persist_graph_relationships(conn, active_with_data, active_bets, wallets)
+
     # Cleanup
     del active_bets
     del wallets
@@ -247,21 +250,31 @@ def main():
             return
 
         if args.command == "run":
-            log.info("Starting continuous loop (every %d minutes)", config.SCRAPE_INTERVAL_MINUTES)
+            log.info(
+                "Starting collect loop (every %d min) + analyze loop (every %d hr)",
+                config.SCRAPE_INTERVAL_MINUTES,
+                config.ANALYZE_INTERVAL_HOURS,
+            )
 
-            def cycle():
+            def collect_cycle():
                 try:
                     collect_data(conn)
+                    gc.collect()
+                except Exception:
+                    log.exception("Collect cycle failed — will retry next interval")
+
+            def analyze_cycle():
+                try:
                     run_analysis(conn)
                     gc.collect()
                 except Exception:
-                    log.exception("Cycle failed — will retry next interval")
+                    log.exception("Analyze cycle failed")
 
-            # Run once immediately
-            cycle()
+            # Run collect immediately, defer first analyze
+            collect_cycle()
 
-            # Schedule recurring
-            schedule.every(config.SCRAPE_INTERVAL_MINUTES).minutes.do(cycle)
+            schedule.every(config.SCRAPE_INTERVAL_MINUTES).minutes.do(collect_cycle)
+            schedule.every(config.ANALYZE_INTERVAL_HOURS).hours.do(analyze_cycle)
 
             while True:
                 schedule.run_pending()

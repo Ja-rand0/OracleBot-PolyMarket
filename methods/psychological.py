@@ -37,12 +37,12 @@ def p20_nash_deviation(
     if total_vol == 0:
         return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets)
 
-    vwap = sum(b.odds * b.amount for b in bets) / total_vol
+    vwap = sum((b.odds if b.side == "YES" else (1 - b.odds)) * b.amount for b in bets) / total_vol
 
     # Latest marginal price (last N bets)
     sorted_bets = sorted(bets, key=lambda b: b.timestamp)
     recent = sorted_bets[-min(10, len(sorted_bets)):]
-    recent_price = float(np.mean([b.odds for b in recent]))
+    recent_price = float(np.mean([(b.odds if b.side == "YES" else (1 - b.odds)) for b in recent]))
 
     deviation = recent_price - vwap
 
@@ -176,10 +176,20 @@ def p22_herding(
     total_yes = sum(1 for b in bets if b.side == "YES")
     total_no = len(bets) - total_yes
     p_same = (total_yes / len(bets)) ** 2 + (total_no / len(bets)) ** 2
-    expected_cluster = max(1, int(len(bets) * p_same * 0.1))  # rough expected max
+    # Scale expected cluster by actual betting rate over market lifespan
+    if len(sorted_bets) >= 2:
+        span_minutes = (sorted_bets[-1].timestamp - sorted_bets[0].timestamp).total_seconds() / 60
+        num_windows = max(1.0, span_minutes / config.P22_TIME_WINDOW_MINUTES)
+        same_side_total = total_yes if max_cluster_side == "YES" else total_no
+        expected_cluster = max(1, int(same_side_total / num_windows))
+        avg_bets_per_window = len(bets) / num_windows
+    else:
+        expected_cluster = max(1, int(p_same * config.P22_MIN_HERD_SIZE))
+        avg_bets_per_window = 1.0
 
     independence_score = expected_cluster / max(max_cluster_size, 1)
-    is_herding = independence_score < 0.5
+    # Herding if cluster is more than 3x the average bets per window (adaptive to bet density)
+    is_herding = max_cluster_size > 3 * max(1.0, avg_bets_per_window)
 
     # Partially discount herding direction
     discount = 0.5 if is_herding else 1.0
@@ -192,11 +202,12 @@ def p22_herding(
 
     return MethodResult(
         signal=signal,
-        confidence=min(1.0, 1.0 - independence_score) if is_herding else 0.2,
+        confidence=min(1.0, 1.0 - independence_score) if is_herding else 0.0,
         filtered_bets=bets,
         metadata={
             "max_cluster_size": max_cluster_size,
             "max_cluster_side": max_cluster_side,
+            "expected_cluster": expected_cluster,
             "independence_score": independence_score,
             "is_herding": is_herding,
         },

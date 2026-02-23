@@ -121,6 +121,10 @@ def d6_pagerank(
             "nodes": G.number_of_nodes(),
             "edges": G.number_of_edges(),
             "top_wallets": sorted(pr.items(), key=lambda x: -x[1])[:5],
+            "edge_list": sorted(
+                [(a, b, G[a][b]["weight"]) for a, b in G.edges()],
+                key=lambda x: -x[2]
+            )[:50],
         },
     )
 
@@ -212,7 +216,7 @@ def d8_boolean_sat(
         confidence = min(1.0, (0.30 - yes_ratio) / 0.20)
     else:
         signal = (yes_ratio - 0.5) * 2  # linear mapping to -1..1
-        confidence = 0.2
+        confidence = abs(yes_ratio - 0.5) * 2  # 50/50→0.0, 70/30→0.4
 
     return MethodResult(
         signal=signal,

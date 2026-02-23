@@ -215,6 +215,7 @@ def s3_coordination_clustering(
             "clusters": len(suspicious_clusters),
             "suspicious_wallets": len(all_suspicious),
             "cluster_sizes": [len(m) for m in suspicious_clusters.values()],
+            "cluster_members": {str(cid): members for cid, members in suspicious_clusters.items()},
         },
     )
 

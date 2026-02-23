@@ -125,9 +125,15 @@ def t18_benfords_law(
     # Significant deviation from Benford's → suspicious
     is_suspicious = p_value < config.T18_CHI_SQUARED_PVALUE
 
-    # If suspicious, no strong directional signal — it's a warning flag
-    signal = 0.0
-    confidence = 1.0 - p_value if is_suspicious else 0.1
+    if is_suspicious:
+        yes_vol = sum(b.amount for b in bets if b.side == "YES")
+        no_vol = sum(b.amount for b in bets if b.side == "NO")
+        total_vol = yes_vol + no_vol
+        signal = (yes_vol - no_vol) / total_vol if total_vol > 0 else 0.0
+        confidence = 1.0 - p_value
+    else:
+        signal = 0.0
+        confidence = 0.1
 
     return MethodResult(
         signal=signal,

@@ -212,6 +212,9 @@ def run_analysis(conn) -> tuple[str | None, list]:
     with console.status("  [green]Generating report...[/]"):
         report, picks = generate_report(conn, active_with_data, active_bets, wallets, output_dir='reports')
 
+    from engine.relationships import persist_graph_relationships
+    persist_graph_relationships(conn, active_with_data, active_bets, wallets)
+
     del active_bets, wallets
     gc.collect()
 
@@ -392,13 +395,27 @@ def run():
     ))
 
     cycle = 1
+    last_analyzed: datetime | None = None
     try:
         while True:
             print_header(cycle)
             try:
                 collect_data(conn)
-                _report, picks = run_analysis(conn)
-                display_report(conn, picks)
+
+                # Analyze on first cycle, then every ANALYZE_INTERVAL_HOURS
+                now = datetime.utcnow()
+                due = last_analyzed is None or (
+                    now - last_analyzed >= timedelta(hours=config.ANALYZE_INTERVAL_HOURS)
+                )
+                if due:
+                    _report, picks = run_analysis(conn)
+                    last_analyzed = datetime.utcnow()
+                    display_report(conn, picks)
+                else:
+                    next_analyze = last_analyzed + timedelta(hours=config.ANALYZE_INTERVAL_HOURS)
+                    console.print(f"  [dim]Next analysis in "
+                                  f"{(next_analyze - now).seconds // 60} min — collecting only[/]")
+
                 gc.collect()
             except KeyboardInterrupt:
                 raise

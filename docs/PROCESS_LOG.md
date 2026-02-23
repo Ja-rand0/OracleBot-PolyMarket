@@ -135,6 +135,48 @@
 
 ---
 
+### Session 5 — Method Bug Fixes + Wallet Relationship Wiring (2026-02-22)
+
+**Backtest-analyst M1 findings:**
+- Only 58/3,899 resolved markets have bet data (1.5% backtest coverage)
+- S4 + T17 is the dominant backbone — appears in 70-76% of top combos
+- Markov methods (M25/M26/M28) appear from rank 23 onward but not top-10
+- M27 (Flow Momentum) entirely absent from all tested combos
+- Zero FPR across all 50 combos — suspected small-sample artifact
+
+**Debug-doctor method diagnostic findings:**
+- 6 confirmed bugs across 4 method files (D7, D8, E10, T18, P20, P22)
+- 2 working methods falsely flagged as broken (T19, M27 — fire correctly)
+- 2 new known issues logged (P016, P017)
+
+**Bug fixes applied (all confirmed PASS by debug-doctor):**
+- B018: D8 Boolean SAT — hardcoded `confidence=0.2` replaced with `abs(yes_ratio - 0.5) * 2` (`methods/discrete.py:219`)
+- B019: T18 Benford's Law — `signal` was hardcoded `0.0`, now directional from YES/NO volume when `is_suspicious=True` (`methods/statistical.py:128`)
+- B020: P20 Nash Deviation — VWAP and recent_price both now normalize NO-side odds: `(1 - b.odds)` for NO bets (`methods/psychological.py:40,45`)
+- B021: P22 Herding — `expected_cluster` formula changed from `len(bets) * p_same * 0.1` to `p_same * config.P22_MIN_HERD_SIZE`; non-herding confidence changed from `0.2` to `0.0` (`methods/psychological.py:179,195`)
+- B022: D7 Pigeonhole — `D7_MIN_BETS` lowered 10→3 so `sharp_count` can be non-zero on typical per-market wallet slices (`config.py:66`)
+- B023: E10 Loyalty Bias — `E10_MIN_MARKETS` lowered 5→2 so wallets with 2+ bets in the market slice are evaluated (`config.py:70`)
+
+**Wallet relationship persistence wired:**
+- S3 now returns `cluster_members` in metadata (`methods/suspicious.py`)
+- D6 now returns `edge_list` (top 50 edges) in metadata (`methods/discrete.py`)
+- `data/db.py` — added `upsert_relationships_batch()`, removed per-row commit from `upsert_relationship()`
+- New file `engine/relationships.py` — `persist_graph_relationships()` runs S3+D6 on active markets and writes to `wallet_relationships` table
+- `main.py` and `dashboard.py` — call `persist_graph_relationships()` after each analysis cycle
+
+**Files modified:**
+- `config.py` — D7_MIN_BETS 10→3, E10_MIN_MARKETS 5→2
+- `methods/discrete.py` — D8 confidence formula, D6 edge_list metadata
+- `methods/statistical.py` — T18 directional signal
+- `methods/psychological.py` — P20 VWAP normalization, P22 expected_cluster + confidence floor
+- `methods/suspicious.py` — S3 cluster_members metadata
+- `data/db.py` — upsert_relationships_batch()
+- `engine/relationships.py` — new file
+- `main.py` — persist_graph_relationships() call
+- `dashboard.py` — persist_graph_relationships() call
+
+---
+
 ## Architecture Decisions Record
 
 | # | Decision | Rationale | Date |
@@ -187,3 +229,27 @@
 8. **Add caching layer** — TTL-based cache for API responses (market lists, prices, wallet data)
 9. **Build Streamlit V1** — Migrate dashboard to web-based with plotly charts
 10. **Integrate FRED/NOAA** — External signals for economic and weather markets
+
+---
+
+## Resolved Bugs
+
+| ID | Date | Module | Description | Fix |
+|----|------|--------|-------------|-----|
+| B001 | — | `scraper.py` | NO-token odds stored as raw price instead of YES probability | `_parse_trade()` now stores `1 - price` for NO tokens |
+| B002 | — | `backtest.py` | Full wallet dict (140k+) passed to every method call | Added per-market wallet filtering |
+| B003 | — | `db.py` | Per-row commits in `insert_method_result` causing DB locks | Removed per-row commit; use `flush_method_results()` |
+| B004 | — | `combinator.py` | Tier 2 tried all 2^N subsets causing combinatorial explosion | Changed to pairs/triples of finalists only |
+| B005 | — | `bets` table | Duplicate bets from re-fetching same trades | Added UNIQUE index + `INSERT OR IGNORE` dedup |
+| B006 | — | `method_results` | Unbounded table growth from optimizer runs | Added `prune_method_results(keep=50)` |
+| B007 | — | `emotional.py` E13 | O(n) list scan for spike bet membership | Changed to `set` for O(1) lookup |
+| B008 | — | `backtest.py` | Method function re-lookup on every market iteration | Cached `method_fns` once per combo |
+| B009 | 2026-02-12 | `config.py` | Source file missing — only `.pyc` existed | Reconstructed from bytecode disassembly via `dis`/`marshal` |
+| B010 | — | `scraper.py` | Silent 30-day fallback with no visibility | Added `log.warning` when fallback is used |
+| B011 | — | `main.py`/`dashboard.py` | Duplicate update_wallet_stats + `datetime.now()` vs `utcnow()` divergence | Deduplicated; fixed to `utcnow()` throughout |
+| B012 | — | `statistical.py` T17 | Bayesian weight constants hardcoded | Extracted to config.py: `T17_AMOUNT_NORMALIZER`, `T17_UPDATE_STEP`, `T17_RATIONALITY_CUTOFF` |
+| B013 | — | `suspicious.py` S4 | Sandpit thresholds hardcoded | Extracted to config.py: `S4_SANDPIT_MIN_BETS`, `S4_SANDPIT_MAX_WIN_RATE`, `S4_SANDPIT_MIN_VOLUME`, `S4_NEW_WALLET_MAX_BETS`, `S4_NEW_WALLET_LARGE_BET` |
+| B014 | — | `backtest.py`/`dashboard.py` | Silent exceptions swallowing errors | Replaced bare `except` with `log.exception()` |
+| B015 | — | `discrete.py` D7 | D7 used `S1_MIN_RESOLVED_BETS` instead of its own threshold | Added `D7_MIN_BETS` to config.py |
+| B016 | — | `report.py` | Market price used simple average instead of VWAP | Now uses volume-weighted average with `REPORT_PRICE_RECENT_TRADES` and `REPORT_PRICE_MIN_TRADES` |
+| B017 | — | `psychological.py` P22 | O(n^2) sliding window for herding detection | Replaced with O(n) two-pointer approach |

@@ -46,7 +46,7 @@ def backtest_combo(
 
     # Cache method function lookups once per combo
     method_fns = [(mid, get_method(mid)) for mid in combo]
-    combo_id = ",".join(combo)
+    combo_id = ",".join(sorted(combo))
 
     for market in markets:
         if not market.resolved or market.outcome is None:
@@ -97,10 +97,10 @@ def backtest_combo(
 
         if predicted == actual:
             correct += 1
-        elif confidence > 0.5:
+        elif confidence > 0.3:
             false_positives += 1
 
-        if confidence > 0.5:
+        if confidence > 0.3:
             high_confidence_preds += 1
 
         # Normalize odds to YES probability (handles old mixed data)

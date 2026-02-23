@@ -51,13 +51,18 @@ def e10_loyalty_bias(
     total = yes_vol + no_vol
     signal = (yes_vol - no_vol) / total if total > 0 else 0.0
 
+    loyal_volume = sum(b.amount for b in emotional_bets)
+    total_volume = sum(b.amount for b in bets)
+    confidence = min(1.0, (loyal_volume / total_volume) * 2) if total_volume > 0 else 0.1
+
     return MethodResult(
         signal=signal,
-        confidence=min(1.0, len(emotional_wallets) / 5) if emotional_wallets else 0.1,
+        confidence=confidence,
         filtered_bets=clean_bets,
         metadata={
             "emotional_wallets": len(emotional_wallets),
             "bets_filtered": len(emotional_bets),
+            "loyal_volume_fraction": loyal_volume / total_volume if total_volume > 0 else 0.0,
         },
     )
 
