@@ -53,7 +53,7 @@ def e10_loyalty_bias(
 
     loyal_volume = sum(b.amount for b in emotional_bets)
     total_volume = sum(b.amount for b in bets)
-    confidence = min(1.0, (loyal_volume / total_volume) * 2) if total_volume > 0 else 0.1
+    confidence = max(0.1, min(1.0, (loyal_volume / total_volume) * 2)) if total_volume > 0 else 0.1
 
     return MethodResult(
         signal=signal,
@@ -118,7 +118,7 @@ def e11_recency_bias(
 
     return MethodResult(
         signal=signal,
-        confidence=min(1.0, skew * 2),
+        confidence=max(0.1, min(1.0, skew * 2)),
         filtered_bets=clean_bets,
         metadata={
             "early_ratio": early_ratio,

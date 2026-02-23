@@ -35,9 +35,13 @@ def t17_bayesian(
     prior = max(0.01, min(0.99, prior))
 
     # Public posterior: update with all bets
+    # Normalize weight by len(bets) so the accumulator is scale-invariant —
+    # without this, large markets overflow ±500 and both posteriors collapse
+    # to the same extreme, zeroing out the divergence signal.
+    n = len(bets)
     public_log_odds = math.log(prior / (1 - prior))
     for b in bets:
-        weight = b.amount / config.T17_AMOUNT_NORMALIZER
+        weight = b.amount / config.T17_AMOUNT_NORMALIZER / n
         if b.side == "YES":
             public_log_odds += weight * config.T17_UPDATE_STEP
         else:
@@ -55,7 +59,7 @@ def t17_bayesian(
         if rationality < config.T17_RATIONALITY_CUTOFF:
             continue  # skip emotional bets
         smart_count += 1
-        weight = b.amount / config.T17_AMOUNT_NORMALIZER * rationality
+        weight = b.amount / config.T17_AMOUNT_NORMALIZER / n * rationality
         if b.side == "YES":
             smart_log_odds += weight * config.T17_UPDATE_STEP
         else:

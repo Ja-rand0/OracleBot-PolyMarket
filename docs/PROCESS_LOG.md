@@ -244,8 +244,8 @@
 | Combinator pipeline working | Done | Tier 1→2→3 with pruning |
 | Dashboard live | Done | Rich terminal UI with picks, combos, wallet alerts |
 | Caretaker watchdog | Done | Auto-restart on crash with backoff |
-| Bug fixes pass | Done | 30 bugs fixed (B001-B030), integrity rules established |
-| Agent system deployed | Done | 4 agents + safety hook + overseer routing |
+| Bug fixes pass | Done | 34 bugs fixed (B001-B034), integrity rules established |
+| Agent system deployed | Done | 7 agents + safety hook + overseer routing |
 | CLAUDE.md comprehensive | Done | Full documentation with method details + bug tracking |
 | config.py reconstructed | Done | Reconstructed from bytecode via `dis`/`marshal` |
 | API reference documented | Done | All Polymarket endpoints + source data APIs catalogued |
@@ -255,6 +255,7 @@
 | Leaderboard wallet seeding | **TODO** | Integrate Data API `/leaderboard` for wallet discovery |
 | Source data integration | **TODO** | FRED, NOAA, CoinGecko, ESPN — Phase 2 |
 | Streamlit dashboard V1 | **TODO** | Migrate from rich terminal to web-based |
+| Post-M3 combinator run | Done | Top combo S4+T17 at 0.3546 (+0.0472 vs baseline); T17 dominates top-10 |
 | First profitable backtest | **TODO** | Requires enough resolved markets + tuned thresholds |
 | Real money deployment | **TODO** | Requires consistent edge + CLOB API bet placement |
 
@@ -264,14 +265,16 @@
 
 1. ~~**Reconstruct config.py**~~ — Done (B009)
 2. ~~**Deduplicate update_wallet_stats**~~ — Done (B011)
-3. **Add method unit tests** — Create fixtures with known outcomes, test each method independently
-4. **Validate rationality formula** — Cross-reference with backtest accuracy to check if the 0.5/0.3/0.2 weights are meaningful
-5. **Profile optimizer performance** — Time each tier, identify bottlenecks, check if Tier 3 hill-climb adds meaningful improvement
-6. **Investigate method correlation** — Run pairwise signal correlation across resolved markets to identify redundant methods
-7. **Integrate Data API leaderboard** — Seed wallet tracking from top profitable wallets
-8. **Add caching layer** — TTL-based cache for API responses (market lists, prices, wallet data)
-9. **Build Streamlit V1** — Migrate dashboard to web-based with plotly charts
-10. **Integrate FRED/NOAA** — External signals for economic and weather markets
+3. ~~**Post-M3 combinator run**~~ — Done (Session 9, S4+T17 at 0.3546)
+4. **Add method unit tests** — Create fixtures with known outcomes, test each method independently
+5. **Tune S1/T19 thresholds** — These weren't in the M3 top combo; re-run threshold-tuner once a combo including S1 or T19 appears in top-3
+6. **Validate rationality formula** — Cross-reference with backtest accuracy to check if the 0.5/0.3/0.2 weights are meaningful
+7. **Profile optimizer performance** — Time each tier, identify bottlenecks, check if Tier 3 hill-climb adds meaningful improvement
+8. **Investigate method correlation** — Run pairwise signal correlation across resolved markets to identify redundant methods
+9. **Integrate Data API leaderboard** — Seed wallet tracking from top profitable wallets
+10. **Add caching layer** — TTL-based cache for API responses (market lists, prices, wallet data)
+11. **Build Streamlit V1** — Migrate dashboard to web-based with plotly charts
+12. **Integrate FRED/NOAA** — External signals for economic and weather markets
 
 ---
 
@@ -310,6 +313,9 @@
 | B029 | 2026-02-22 | `statistical.py` T17 | `math.exp()` overflow on high-volume markets | Clamp log-odds to [-500, 500] before sigmoid |
 | B030 | 2026-02-22 | `db.py` / `main.py` | `upsert_market()` committed per-row (13k+ commits/cycle) | Removed commit from function; batch after loop in main.py |
 | B031 | 2026-02-23 | `engine/combinator.py` | tier3 hill-climb called `get_all_method_ids()` — excluded methods could re-enter via hill-climb | Build `active_method_ids` from CATEGORIES instead; removed dead import |
+| B032 | 2026-02-23 | `dashboard.py` | Upsert loops inside `console.status()` spinner + missing `conn.commit()` — caused 6-hour hang on Windows (Rich thread starved SQLite timeout polling) | Moved upserts outside spinner blocks; added `conn.commit()` after each loop; added `log.info` checkpoints |
+| B033 | 2026-02-23 | `statistical.py` T17 | Weight accumulator not scale-invariant — on large markets both posteriors converge to same extreme, zeroing divergence signal (B029 clamp was insufficient) | Divide weight by `n = len(bets)`; public and smart posteriors now reflect direction, not volume |
+| B034 | 2026-02-23 | `emotional.py` E10/E11 | Confidence could reach 0.0 when weak signal — method contribution disappears from weighted aggregator | Added `max(0.1, ...)` floor to confidence in both methods |
 
 ---
 
@@ -375,3 +381,63 @@
 - T17_AMOUNT_NORMALIZER and T17_UPDATE_STEP not tested jointly with high-sensitivity changes — run a combined test next time the combinator runs
 - 0.33 trending threshold is exactly at the 3-state uniform floor — monitor FPR on M26 in the next full combinator run
 - S1/T19 constants need tuning against combos that include those methods (not tested here)
+
+### Session 9 — Post-M3 Combinator Re-Run (2026-02-23)
+
+**What was done:**
+- Full Tier1→Tier2→Tier3 combinator pass with all M3 threshold changes applied
+- Tested on 25 eligible resolved markets (same set as M3 baseline)
+
+**Results:**
+
+| Rank | Combo | Fitness | Accuracy | Edge | FPR |
+|------|-------|---------|----------|------|-----|
+| 1 | S4, T17 | 0.3546 | 1.0 | 0.085 | 0.0 |
+| 2 | S4, T17, D5 | ~0.34+ | 1.0 | — | 0.0 |
+| 3–10 | T17-anchored combos | 0.31–0.35 | 1.0 | — | 0.0 |
+
+- Top combo improved 0.3074 → 0.3546 (+0.0472) vs post-wipe baseline
+- T17 appears in all top-10 combos — confirmed as the dominant signal anchor
+- S4 (sandpit filter) pairs consistently with T17 as best preprocessor
+- FPR=0.0 and Accuracy=1.0 across top-10 — consistent with small-sample regime (25 markets)
+- M26 (Market Phases) drops out of the top combo after M3 tuning vs. Session 8 expectation; S4+T17 pair is tighter
+
+**T17 signal investigation (data-analyst agent):**
+- `analysis/backtest_t17_signal.py` created to inspect T17 signal direction on 25 backtest markets
+- Found: T17 confidence/signal collapse on large-volume markets despite ±500 clamp (B029 band-aid insufficient)
+- Root cause: `weight = amount / T17_AMOUNT_NORMALIZER` accumulates linearly with bets — on a 1000-bet market the public and smart posteriors both converge to the same extreme, zeroing the divergence
+- Fix (`methods/statistical.py`): divide weight by `n = len(bets)` — makes the total update scale-invariant regardless of market size; both posteriors now reflect bet _direction_ rather than raw accumulation
+- Additional analysis scripts (`backtest_q5_q7c.py`, `backtest_q7.py`, `backtest_q7b.py`, `backtest_q7d.py`) created to investigate combo Q5/Q7 performance; **uncommitted at end of session (usage limit)**
+
+**E10/E11 confidence floor fix (`methods/emotional.py`):**
+- `e10_loyalty_bias` and `e11_recency_bias` confidence could reach 0.0 when signals are weak
+- Zero confidence causes these methods to contribute 0 weight in the aggregator, effectively disappearing from combos even when they fire
+- Fix: `max(0.1, ...)` floor ensures minimum confidence of 0.1 — methods always contribute a small signal when they activate
+- **Uncommitted at end of session (usage limit)**
+
+**Files modified (uncommitted):**
+- `methods/statistical.py` — T17 scale-invariant weight (`/ n`)
+- `methods/emotional.py` — E10/E11 confidence floor (`max(0.1, ...)`)
+- `analysis/backtest_t17_signal.py` — T17 signal investigation script (new)
+- `analysis/backtest_q5_q7c.py`, `backtest_q7.py`, `backtest_q7b.py`, `backtest_q7d.py` — combo Q analysis scripts (new)
+
+### Session 10 — Dashboard Hang Fix + Documentation (2026-02-23)
+
+**Incident:** Bot found stuck overnight — oracle.bat had not collected data since 03:14:48 (6+ hours). Terminal showed "Fetching active markets..." spinner frozen.
+
+**Diagnosis:**
+- `caretaker.log`: process started at 03:14:40, never restarted (hung, not crashed)
+- `bot.log`: last entry "Fetched 5000 markets total" at 03:14:48 — no DB writes after
+- `polymarket.db-wal`: 0 bytes — confirmed zero writes in entire 6-hour session
+- Two Python processes running (caretaker PID 49472, dashboard PID 48508) — no orphan/duplicate
+- Root cause: **B032** — `dashboard.py` upsert loops ran inside `console.status()` spinner block with no `conn.commit()`; Rich's background spinner thread (Windows console API writes) competed with the main thread's first SQLite write lock acquisition, starving the 30-second timeout polling loop
+
+**Bug B032 fix applied to `dashboard.py`:**
+- Moved active-market and resolved-market upsert loops OUTSIDE their respective `console.status()` blocks (only the API fetch stays inside the spinner)
+- Added `conn.commit()` after each upsert loop — the same fix that `main.py` received in B030 (commit 9c47789) was never applied to `dashboard.py`
+- Added `log.info("Upserting N markets to DB...")` and `log.info("...upserts complete")` before/after each loop — future hangs can be located immediately in `bot.log`
+
+**Session 9 uncommitted changes committed:**
+- `methods/statistical.py` T17 scale-invariant weights
+- `methods/emotional.py` E10/E11 confidence floors
+- New analysis scripts tracked

@@ -285,6 +285,7 @@ fitness = accuracy * 0.35 + edge_vs_market * 0.35 - false_positive_rate * 0.20 -
 - Use `sqlite3.connect(path, timeout=30)` — never default timeout.
 - Batch all bulk writes with `executemany` + single `conn.commit()`. Never commit per-row.
 - Removed per-row commit from `insert_method_result` — use `flush_method_results()` to batch.
+- `upsert_market()` has no internal commit — callers (both `main.py` AND `dashboard.py`) must call `conn.commit()` after their market upsert loops. **On Windows, running DB writes inside a `console.status()` Rich spinner block can starve the SQLite timeout polling and cause indefinite hangs** — always keep upsert loops outside spinner/progress contexts.
 
 ### Graph Method Performance
 - S3 (Louvain) and D6 (PageRank): min bets = 10 to skip expensive graph ops on tiny datasets.
@@ -318,7 +319,7 @@ fitness = accuracy * 0.35 + edge_vs_market * 0.35 - false_positive_rate * 0.20 -
 
 ## Bug Tracking
 
-> Resolved bugs (B001-B017): `docs/PROCESS_LOG.md`
+> Resolved bugs (B001-B034): `docs/PROCESS_LOG.md`
 
 ### Known Issues / Potential Bugs
 

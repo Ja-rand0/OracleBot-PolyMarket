@@ -92,8 +92,11 @@ def collect_data(conn) -> dict:
     # --- Active markets ---
     with console.status("  [green]Fetching active markets...[/]"):
         markets = fetch_markets(active_only=True)
-        for m in markets:
-            db.upsert_market(conn, m)
+    log.info("Upserting %d active markets to DB...", len(markets))
+    for m in markets:
+        db.upsert_market(conn, m)
+    conn.commit()
+    log.info("Active market upserts complete")
     stats["markets"] = len(markets)
     console.print(f"  [dim]Markets stored :[/] [bold]{len(markets):,}[/]")
 
@@ -128,8 +131,11 @@ def collect_data(conn) -> dict:
     # --- Resolved markets ---
     with console.status("  [green]Fetching resolved markets...[/]"):
         resolved = fetch_resolved_markets(max_pages=3)
-        for m in resolved:
-            db.upsert_market(conn, m)
+    log.info("Upserting %d resolved markets to DB...", len(resolved))
+    for m in resolved:
+        db.upsert_market(conn, m)
+    conn.commit()
+    log.info("Resolved market upserts complete")
     stats["resolved"] = len(resolved)
     console.print(f"  [dim]Resolved       :[/] [bold]{len(resolved):,}[/]")
 
