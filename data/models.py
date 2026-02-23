@@ -14,6 +14,7 @@ class Market:
     resolved: bool = False
     outcome: Optional[str] = None  # "YES" or "NO" once resolved
     created_at: datetime = field(default_factory=datetime.utcnow)
+    volume: float = 0.0  # total traded volume (not persisted, used for sorting)
 
 
 @dataclass

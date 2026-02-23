@@ -117,16 +117,17 @@ def collect_data(conn) -> None:
         db.upsert_market(conn, m)
     log.info("Stored %d active markets", len(markets))
 
-    # Fetch trades for a capped subset of active markets
+    # Fetch trades for a capped subset of active markets — highest volume first
+    markets_by_volume = sorted(markets, key=lambda m: m.volume, reverse=True)
     total_trades = 0
     markets_with_trades = 0
     fetched = 0
-    for i, m in enumerate(markets):
+    for i, m in enumerate(markets_by_volume):
         if fetched >= MAX_ACTIVE_TRADE_FETCHES:
             break
         if (i + 1) % 200 == 0:
             log.info("  Trade fetch progress: %d / %d markets (fetched %d)",
-                     i + 1, len(markets), fetched)
+                     i + 1, len(markets_by_volume), fetched)
         try:
             since = db.get_latest_bet_timestamp(conn, m.id)
             trades = fetch_trades_for_market(m.id, since=since)

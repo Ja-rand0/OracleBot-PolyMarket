@@ -67,6 +67,12 @@ def _parse_gamma_market(raw: dict) -> Market:
                 outcome = tok.get("outcome", "").upper()  # "YES" or "NO"
                 break
 
+    vol = raw.get("volumeNum") or float(raw.get("volume") or 0)
+    try:
+        vol = float(vol)
+    except (TypeError, ValueError):
+        vol = 0.0
+
     return Market(
         id=raw.get("conditionId") or raw.get("condition_id", ""),
         title=raw.get("question", ""),
@@ -75,6 +81,7 @@ def _parse_gamma_market(raw: dict) -> Market:
         resolved=resolved,
         outcome=outcome,
         created_at=_parse_dt(created_str),
+        volume=vol,
     )
 
 
