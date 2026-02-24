@@ -25,12 +25,13 @@ FITNESS_W_EDGE        = 0.35
 FITNESS_W_FALSE_POS   = 0.20
 FITNESS_W_COMPLEXITY  = 0.10
 
-BACKTEST_CUTOFF_FRACTION = 0.70   # use first 70% of market lifespan
-TIER1_TOP_PER_CATEGORY   = 5
-TIER2_TOP_OVERALL        = 10
-SCRAPE_INTERVAL_MINUTES  = 30
-ANALYZE_INTERVAL_HOURS   = 6
-TOTAL_METHODS            = 28
+BACKTEST_CUTOFF_FRACTION  = 0.70   # use first 70% of market lifespan
+TIER1_TOP_PER_CATEGORY    = 5
+TIER2_TOP_OVERALL         = 10
+SCRAPE_INTERVAL_MINUTES   = 30
+ANALYZE_INTERVAL_HOURS    = 6
+TOTAL_METHODS             = 28
+BACKFILL_MAX_AGE_DAYS     = 365    # skip resolved markets older than this (Data API likely dry)
 
 DB_PATH = "polymarket.db"
 

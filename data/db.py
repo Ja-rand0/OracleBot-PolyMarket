@@ -195,23 +195,41 @@ def get_resolved_markets_needing_backfill(
     conn: sqlite3.Connection,
     min_bets: int = 5,
     limit: int = 100,
+    min_end_date: datetime | None = None,
 ) -> list[Market]:
     """Return resolved markets in the DB that have fewer than min_bets bets.
 
     Ordered by end_date DESC so we prioritise recent markets (more likely to
     still have trade data available via the Data API).
+
+    min_end_date: skip markets that resolved before this date (Data API likely dry).
     """
-    rows = conn.execute(
-        """
-        SELECT m.*
-        FROM markets m
-        WHERE m.resolved = 1
-          AND (SELECT COUNT(*) FROM bets b WHERE b.market_id = m.id) < ?
-        ORDER BY m.end_date DESC
-        LIMIT ?
-        """,
-        (min_bets, limit),
-    ).fetchall()
+    if min_end_date is not None:
+        cutoff = min_end_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+        rows = conn.execute(
+            """
+            SELECT m.*
+            FROM markets m
+            WHERE m.resolved = 1
+              AND m.end_date >= ?
+              AND (SELECT COUNT(*) FROM bets b WHERE b.market_id = m.id) < ?
+            ORDER BY m.end_date DESC
+            LIMIT ?
+            """,
+            (cutoff, min_bets, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            """
+            SELECT m.*
+            FROM markets m
+            WHERE m.resolved = 1
+              AND (SELECT COUNT(*) FROM bets b WHERE b.market_id = m.id) < ?
+            ORDER BY m.end_date DESC
+            LIMIT ?
+            """,
+            (min_bets, limit),
+        ).fetchall()
     return [
         Market(
             id=r["id"], title=r["title"], description=r["description"],

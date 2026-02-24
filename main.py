@@ -5,7 +5,7 @@ import argparse
 import gc
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import schedule
 
@@ -23,7 +23,7 @@ MAX_ACTIVE_TRADE_FETCHES = 500
 # Max resolved markets to fetch trades for per cycle (bumped to build backtest set faster)
 MAX_RESOLVED_TRADE_FETCHES = 500
 # Max resolved markets to backfill from DB per cycle (drains the empty-bet backlog)
-MAX_BACKFILL_FETCHES = 100
+MAX_BACKFILL_FETCHES = 200
 # Min bets for a resolved market to be useful in backtesting
 MIN_BETS_FOR_BACKTEST = 5
 
@@ -166,11 +166,13 @@ def collect_data(conn) -> None:
             log.exception("Failed to fetch trades for resolved market %s", m.id[:16])
 
     # Backfill: resolved markets already in DB with no/few bets (not in current fetch window)
+    backfill_cutoff = datetime.utcnow() - timedelta(days=config.BACKFILL_MAX_AGE_DAYS)
     backfill_markets = db.get_resolved_markets_needing_backfill(
-        conn, min_bets=MIN_BETS_FOR_BACKTEST, limit=MAX_BACKFILL_FETCHES
+        conn, min_bets=MIN_BETS_FOR_BACKTEST, limit=MAX_BACKFILL_FETCHES,
+        min_end_date=backfill_cutoff,
     )
-    log.info("Backfill: %d resolved markets in DB have fewer than %d bets",
-             len(backfill_markets), MIN_BETS_FOR_BACKTEST)
+    log.info("Backfill: %d resolved markets in DB have fewer than %d bets (cutoff: %s)",
+             len(backfill_markets), MIN_BETS_FOR_BACKTEST, backfill_cutoff.strftime("%Y-%m-%d"))
     backfill_added = 0
     backfill_with_data = 0
     backfill_empty = 0
