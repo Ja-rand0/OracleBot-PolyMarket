@@ -266,15 +266,17 @@
 1. ~~**Reconstruct config.py**~~ — Done (B009)
 2. ~~**Deduplicate update_wallet_stats**~~ — Done (B011)
 3. ~~**Post-M3 combinator run**~~ — Done (Session 9, S4+T17 at 0.3546)
-4. **Add method unit tests** — Create fixtures with known outcomes, test each method independently
-5. **Tune S1/T19 thresholds** — These weren't in the M3 top combo; re-run threshold-tuner once a combo including S1 or T19 appears in top-3
-6. **Validate rationality formula** — Cross-reference with backtest accuracy to check if the 0.5/0.3/0.2 weights are meaningful
-7. **Profile optimizer performance** — Time each tier, identify bottlenecks, check if Tier 3 hill-climb adds meaningful improvement
-8. **Investigate method correlation** — Run pairwise signal correlation across resolved markets to identify redundant methods
-9. **Integrate Data API leaderboard** — Seed wallet tracking from top profitable wallets
-10. **Add caching layer** — TTL-based cache for API responses (market lists, prices, wallet data)
-11. **Build Streamlit V1** — Migrate dashboard to web-based with plotly charts
-12. **Integrate FRED/NOAA** — External signals for economic and weather markets
+4. ~~**Backfill resolved market bets**~~ — Done (Session 11, backfill loop drains 100 empty markets/cycle)
+5. **Re-run combinator after backfill** — Once backtest pool grows to 100+ markets, re-run to check if 100% accuracy holds or breaks
+6. **Add method unit tests** — Create fixtures with known outcomes, test each method independently
+7. **Tune S1/T19 thresholds** — These weren't in the M3 top combo; re-run threshold-tuner once a combo including S1 or T19 appears in top-3
+8. **Validate rationality formula** — Cross-reference with backtest accuracy to check if the 0.5/0.3/0.2 weights are meaningful
+9. **Profile optimizer performance** — Time each tier, identify bottlenecks, check if Tier 3 hill-climb adds meaningful improvement
+10. **Investigate method correlation** — Run pairwise signal correlation across resolved markets to identify redundant methods
+11. **Integrate Data API leaderboard** — Seed wallet tracking from top profitable wallets
+12. **Add caching layer** — TTL-based cache for API responses (market lists, prices, wallet data)
+13. **Build Streamlit V1** — Migrate dashboard to web-based with plotly charts
+14. **Integrate FRED/NOAA** — External signals for economic and weather markets
 
 ---
 
@@ -441,3 +443,27 @@
 - `methods/statistical.py` T17 scale-invariant weights
 - `methods/emotional.py` E10/E11 confidence floors
 - New analysis scripts tracked
+
+### Session 11 — Resolved Market Backfill (2026-02-24)
+
+**Diagnosis:**
+- data-analyst investigation confirmed 2,153 of 2,211 resolved markets in DB have zero bets (97.4% empty)
+- Actual backtest pool: ~28–41 markets (those that happened to be in the `fetch_resolved_markets()` API window at collection time)
+- Reported 100% accuracy is statistically meaningless — based on ~35 markets, all T17-anchored
+- Root cause: `collect_data()` in both `main.py` and `dashboard.py` only fetched trades for markets returned by the *current* `fetch_resolved_markets()` call; markets upserted in prior cycles with no bet data were never revisited
+- T17 appears in all 50 stored method_results — selection artifact, not robust signal
+
+**Fix applied:**
+- `db.py` — added `get_resolved_markets_needing_backfill(conn, min_bets, limit)`: queries for `resolved=1` markets with fewer than `min_bets` bets, ordered by `end_date DESC` (recent first — more likely the Data API still has trade history)
+- `main.py` — added `MAX_BACKFILL_FETCHES = 100` constant; added backfill pass after resolved trade fetch — drains up to 100 empty resolved markets per cycle
+- `dashboard.py` — same constant and backfill pass with rich progress bar (`[magenta]Backfill trades`) and summary line
+
+**Expected outcome:**
+- At 100 markets/cycle the 2,153-market backlog drains in ~22 cycles
+- Backtest pool grows from ~35 → potentially hundreds of markets
+- 100% accuracy either holds (genuine signal) or breaks (small-sample artifact) — either way, the number becomes meaningful
+
+**Files modified:**
+- `data/db.py` — `get_resolved_markets_needing_backfill()`
+- `main.py` — `MAX_BACKFILL_FETCHES` constant, backfill loop
+- `dashboard.py` — `MAX_BACKFILL_FETCHES` constant, backfill loop with progress bar

@@ -22,6 +22,8 @@ log = logging.getLogger("main")
 MAX_ACTIVE_TRADE_FETCHES = 500
 # Max resolved markets to fetch trades for per cycle (bumped to build backtest set faster)
 MAX_RESOLVED_TRADE_FETCHES = 500
+# Max resolved markets to backfill from DB per cycle (drains the empty-bet backlog)
+MAX_BACKFILL_FETCHES = 100
 # Min bets for a resolved market to be useful in backtesting
 MIN_BETS_FOR_BACKTEST = 5
 
@@ -162,6 +164,24 @@ def collect_data(conn) -> None:
             resolved_fetched += 1
         except Exception:
             log.exception("Failed to fetch trades for resolved market %s", m.id[:16])
+
+    # Backfill: resolved markets already in DB with no/few bets (not in current fetch window)
+    backfill_markets = db.get_resolved_markets_needing_backfill(
+        conn, min_bets=MIN_BETS_FOR_BACKTEST, limit=MAX_BACKFILL_FETCHES
+    )
+    log.info("Backfill: %d resolved markets in DB have fewer than %d bets",
+             len(backfill_markets), MIN_BETS_FOR_BACKTEST)
+    backfill_added = 0
+    for m in backfill_markets:
+        try:
+            trades = fetch_trades_for_market(m.id)
+            if trades:
+                db.insert_bets_bulk(conn, trades)
+                backfill_added += len(trades)
+        except Exception:
+            log.exception("Failed to backfill trades for resolved market %s", m.id[:16])
+    log.info("Backfill complete: added %d trades across %d markets",
+             backfill_added, len(backfill_markets))
 
     log.info("=== Data collection complete ===")
 

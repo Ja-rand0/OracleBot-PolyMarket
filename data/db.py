@@ -191,6 +191,37 @@ def get_all_markets(conn: sqlite3.Connection, resolved_only: bool = False) -> li
     ]
 
 
+def get_resolved_markets_needing_backfill(
+    conn: sqlite3.Connection,
+    min_bets: int = 5,
+    limit: int = 100,
+) -> list[Market]:
+    """Return resolved markets in the DB that have fewer than min_bets bets.
+
+    Ordered by end_date DESC so we prioritise recent markets (more likely to
+    still have trade data available via the Data API).
+    """
+    rows = conn.execute(
+        """
+        SELECT m.*
+        FROM markets m
+        WHERE m.resolved = 1
+          AND (SELECT COUNT(*) FROM bets b WHERE b.market_id = m.id) < ?
+        ORDER BY m.end_date DESC
+        LIMIT ?
+        """,
+        (min_bets, limit),
+    ).fetchall()
+    return [
+        Market(
+            id=r["id"], title=r["title"], description=r["description"],
+            end_date=_dt(r["end_date"]), resolved=bool(r["resolved"]),
+            outcome=r["outcome"], created_at=_dt(r["created_at"]),
+        )
+        for r in rows
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Bet CRUD
 # ---------------------------------------------------------------------------

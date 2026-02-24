@@ -36,6 +36,7 @@ log = logging.getLogger("dashboard")
 
 MAX_ACTIVE_TRADE_FETCHES = 500
 MAX_RESOLVED_TRADE_FETCHES = 100
+MAX_BACKFILL_FETCHES = 100
 MIN_BETS_FOR_BACKTEST = 5
 
 
@@ -154,6 +155,26 @@ def collect_data(conn) -> dict:
             except Exception:
                 log.exception("Failed to fetch trades for resolved market %s", m.id[:16])
             progress.advance(task)
+
+    # --- Backfill: resolved markets already in DB with no/few bets ---
+    backfill_markets = db.get_resolved_markets_needing_backfill(
+        conn, min_bets=MIN_BETS_FOR_BACKTEST, limit=MAX_BACKFILL_FETCHES
+    )
+    log.info("Backfill: %d resolved markets in DB have fewer than %d bets",
+             len(backfill_markets), MIN_BETS_FOR_BACKTEST)
+    backfill_added = 0
+    with _progress() as progress:
+        task = progress.add_task("[magenta]Backfill trades", total=len(backfill_markets))
+        for m in backfill_markets:
+            try:
+                trades = fetch_trades_for_market(m.id)
+                if trades:
+                    db.insert_bets_bulk(conn, trades)
+                    backfill_added += len(trades)
+            except Exception:
+                log.exception("Failed to backfill trades for resolved market %s", m.id[:16])
+            progress.advance(task)
+    console.print(f"  [dim]Backfilled     :[/] [bold]{backfill_added:,}[/]  trades from {len(backfill_markets)} markets")
 
     console.print()
     return stats
