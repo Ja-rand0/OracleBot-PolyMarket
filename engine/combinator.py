@@ -182,6 +182,8 @@ def run_full_optimization(
     markets: list[Market],
     bets_by_market: dict[str, list[Bet]],
     wallets: dict[str, Wallet],
+    holdout_markets: list[Market] | None = None,
+    holdout_bets: dict[str, list[Bet]] | None = None,
 ) -> list[ComboResults]:
     """Run the complete Tier 1 -> 2 -> 3 optimization pipeline."""
     log.info("=== Starting full optimization ===")
@@ -201,6 +203,26 @@ def run_full_optimization(
     pruned = db.prune_method_results(conn, keep=50)
     if pruned:
         log.info("Pruned %d old method results", pruned)
+
+    # Holdout validation — evaluate top combos on unseen markets
+    if holdout_markets and holdout_bets and t3:
+        log.info("=== Holdout validation (%d markets) ===", len(holdout_markets))
+        for cr in t3[:3]:
+            hcr = backtest_combo(cr.methods_used, holdout_markets, holdout_bets, wallets)
+            gap = hcr.fitness_score - cr.fitness_score
+            log.info(
+                "  HOLDOUT %s | train=%.4f holdout=%.4f gap=%+.4f "
+                "| acc %.2f→%.2f | edge %.3f→%.3f | fpr %.2f→%.2f",
+                cr.combo_id, cr.fitness_score, hcr.fitness_score, gap,
+                cr.accuracy, hcr.accuracy,
+                cr.edge_vs_market, hcr.edge_vs_market,
+                cr.false_positive_rate, hcr.false_positive_rate,
+            )
+            db.insert_holdout_result(
+                conn, cr.combo_id, cr, hcr,
+                len(markets), len(holdout_markets),
+            )
+        db.flush_method_results(conn)
 
     log.info("=== Optimization complete — top combo: %s (fitness=%.4f) ===",
              t3[0].combo_id if t3 else "none", t3[0].fitness_score if t3 else 0)

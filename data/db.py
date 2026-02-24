@@ -93,6 +93,22 @@ def init_db(conn: sqlite3.Connection) -> None:
             tested_at TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS holdout_validation (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            validated_at    TEXT NOT NULL,
+            combo_id        TEXT NOT NULL,
+            train_markets   INTEGER,
+            holdout_markets INTEGER,
+            train_fitness   REAL,
+            holdout_fitness REAL,
+            train_accuracy  REAL,
+            holdout_accuracy REAL,
+            train_edge      REAL,
+            holdout_edge    REAL,
+            train_fpr       REAL,
+            holdout_fpr     REAL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_bets_market ON bets(market_id);
         CREATE INDEX IF NOT EXISTS idx_bets_wallet ON bets(wallet);
         CREATE INDEX IF NOT EXISTS idx_bets_timestamp ON bets(timestamp);
@@ -423,6 +439,48 @@ def prune_method_results(conn: sqlite3.Connection, keep: int = 50) -> int:
     ).rowcount
     conn.commit()
     return deleted
+
+
+def insert_holdout_result(
+    conn: sqlite3.Connection,
+    combo_id: str,
+    train_cr: ComboResults,
+    holdout_cr: ComboResults,
+    train_n: int,
+    holdout_n: int,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO holdout_validation
+        (validated_at, combo_id, train_markets, holdout_markets,
+         train_fitness, holdout_fitness, train_accuracy, holdout_accuracy,
+         train_edge, holdout_edge, train_fpr, holdout_fpr)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            datetime.utcnow().isoformat(), combo_id, train_n, holdout_n,
+            train_cr.fitness_score, holdout_cr.fitness_score,
+            train_cr.accuracy, holdout_cr.accuracy,
+            train_cr.edge_vs_market, holdout_cr.edge_vs_market,
+            train_cr.false_positive_rate, holdout_cr.false_positive_rate,
+        ),
+    )
+
+
+def get_latest_holdout_results(conn: sqlite3.Connection, limit: int = 3) -> list:
+    """Get the most recent holdout validation rows ordered by validated_at."""
+    return conn.execute(
+        """
+        SELECT combo_id, train_markets, holdout_markets,
+               train_fitness, holdout_fitness,
+               train_accuracy, holdout_accuracy,
+               train_edge, holdout_edge
+        FROM holdout_validation
+        ORDER BY validated_at DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
 
 
 def get_top_combos(conn: sqlite3.Connection, limit: int = 10) -> list[ComboResults]:

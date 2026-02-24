@@ -32,6 +32,7 @@ SCRAPE_INTERVAL_MINUTES   = 30
 ANALYZE_INTERVAL_HOURS    = 6
 TOTAL_METHODS             = 28
 BACKFILL_MAX_AGE_DAYS     = 365    # skip resolved markets older than this (Data API likely dry)
+HOLDOUT_FRACTION          = 0.20   # 20% of resolved markets held out for validation
 
 DB_PATH = "polymarket.db"
 

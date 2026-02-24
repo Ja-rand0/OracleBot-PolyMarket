@@ -24,6 +24,7 @@ import config
 from data import db
 from data.models import Bet, Wallet
 from data.scraper import fetch_markets, fetch_resolved_markets, fetch_trades_for_market
+from engine.backtest import split_holdout
 from engine.combinator import run_full_optimization
 from engine.report import generate_report
 from main import update_wallet_stats
@@ -224,18 +225,42 @@ def run_analysis(conn) -> tuple[str | None, list]:
     usable = [m for m in resolved_markets if m.id in resolved_bets]
     console.print(f"  [dim]Backtestable   :[/] [bold]{len(usable)}[/]")
 
+    # Holdout split
+    train_markets, holdout_markets = split_holdout(usable, config.HOLDOUT_FRACTION)
+    train_bets = {m.id: resolved_bets[m.id] for m in train_markets if m.id in resolved_bets}
+    holdout_bets_map = {m.id: resolved_bets[m.id] for m in holdout_markets if m.id in resolved_bets}
+    console.print(
+        f"  [dim]Holdout split  :[/] [bold]{len(train_markets)}[/] train / "
+        f"[bold]{len(holdout_markets)}[/] holdout (temporal)"
+    )
+
+    if len(holdout_markets) < 5:
+        holdout_markets, holdout_bets_map = None, None
+
     # Optimization
     if len(usable) >= 10:
         with console.status(
-            f"  [green]Optimizing on {len(usable)} resolved markets...[/]"
+            f"  [green]Optimizing on {len(train_markets)} train markets...[/]"
         ):
-            run_full_optimization(conn, usable, resolved_bets, wallets)
+            run_full_optimization(conn, train_markets, train_bets, wallets,
+                                  holdout_markets, holdout_bets_map)
         top = db.get_top_combos(conn, limit=1)
         if top:
             console.print(
                 f"  [dim]Best combo     :[/] "
                 f"[bold green]{top[0].combo_id}[/]  "
                 f"fitness=[bold]{top[0].fitness_score:.4f}[/]"
+            )
+        holdout_rows = db.get_latest_holdout_results(conn, limit=1)
+        if holdout_rows:
+            row = holdout_rows[0]
+            gap = row[4] - row[3]  # holdout_fitness - train_fitness
+            gap_color = "red" if gap < -0.05 else "green"
+            console.print(
+                f"  [dim]Holdout valid  :[/] "
+                f"train=[bold]{row[3]:.4f}[/] holdout=[bold]{row[4]:.4f}[/] "
+                f"gap=[bold {gap_color}]{gap:+.4f}[/]  "
+                f"[dim]({row[1]} train / {row[2]} holdout markets)[/]"
             )
     else:
         console.print(

@@ -13,6 +13,7 @@ import config
 from data import db
 from data.models import Bet, Wallet
 from data.scraper import fetch_markets, fetch_resolved_markets, fetch_trades_for_market
+from engine.backtest import split_holdout
 from engine.combinator import run_full_optimization
 from engine.report import generate_report
 
@@ -230,9 +231,19 @@ def run_analysis(conn) -> None:
     usable_resolved = [m for m in resolved_markets if m.id in resolved_bets]
     log.info("Resolved markets with %d+ bets: %d", MIN_BETS_FOR_BACKTEST, len(usable_resolved))
 
+    train_markets, holdout_markets = split_holdout(usable_resolved, config.HOLDOUT_FRACTION)
+    train_bets = {m.id: resolved_bets[m.id] for m in train_markets if m.id in resolved_bets}
+    holdout_bets = {m.id: resolved_bets[m.id] for m in holdout_markets if m.id in resolved_bets}
+    log.info("Holdout split: %d train / %d holdout markets (temporal, oldest→train)",
+             len(train_markets), len(holdout_markets))
+
+    if len(holdout_markets) < 5:
+        log.warning("Holdout set too small (%d markets) — skipping validation", len(holdout_markets))
+        holdout_markets, holdout_bets = None, None
+
     if len(usable_resolved) >= 10:
-        log.info("Running optimization on %d resolved markets", len(usable_resolved))
-        run_full_optimization(conn, usable_resolved, resolved_bets, wallets)
+        log.info("Running optimization on %d train markets", len(train_markets))
+        run_full_optimization(conn, train_markets, train_bets, wallets, holdout_markets, holdout_bets)
     else:
         log.warning("Only %d usable resolved markets — need 10+ for optimization",
                      len(usable_resolved))

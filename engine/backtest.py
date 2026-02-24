@@ -30,6 +30,19 @@ def _aggregate_signals(results: list[MethodResult]) -> tuple[float, float]:
     return max(-1.0, min(1.0, signal)), min(1.0, confidence)
 
 
+def split_holdout(
+    markets: list[Market],
+    holdout_fraction: float,
+) -> tuple[list[Market], list[Market]]:
+    """Temporally split markets: oldest → train, newest → holdout.
+    Returns (train_markets, holdout_markets)."""
+    if not markets:
+        return [], []
+    sorted_markets = sorted(markets, key=lambda m: m.created_at)
+    split_idx = int(len(sorted_markets) * (1 - holdout_fraction))
+    return sorted_markets[:split_idx], sorted_markets[split_idx:]
+
+
 def backtest_combo(
     combo: list[str],
     markets: list[Market],
