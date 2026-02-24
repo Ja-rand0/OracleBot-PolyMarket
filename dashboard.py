@@ -163,18 +163,38 @@ def collect_data(conn) -> dict:
     log.info("Backfill: %d resolved markets in DB have fewer than %d bets",
              len(backfill_markets), MIN_BETS_FOR_BACKTEST)
     backfill_added = 0
+    backfill_with_data = 0
+    backfill_empty = 0
     with _progress() as progress:
         task = progress.add_task("[magenta]Backfill trades", total=len(backfill_markets))
-        for m in backfill_markets:
+        for i, m in enumerate(backfill_markets):
+            log.debug("Backfill [%d/%d] %s | outcome=%s end=%s",
+                      i + 1, len(backfill_markets), m.id[:16], m.outcome, m.end_date)
             try:
                 trades = fetch_trades_for_market(m.id)
                 if trades:
                     db.insert_bets_bulk(conn, trades)
                     backfill_added += len(trades)
+                    backfill_with_data += 1
+                    log.debug("Backfill [%d/%d] %s — got %d trades",
+                              i + 1, len(backfill_markets), m.id[:16], len(trades))
+                else:
+                    backfill_empty += 1
+                    log.debug("Backfill [%d/%d] %s — no trades returned (API dry)",
+                              i + 1, len(backfill_markets), m.id[:16])
             except Exception:
                 log.exception("Failed to backfill trades for resolved market %s", m.id[:16])
             progress.advance(task)
-    console.print(f"  [dim]Backfilled     :[/] [bold]{backfill_added:,}[/]  trades from {len(backfill_markets)} markets")
+    log.info(
+        "Backfill complete: %d trades added | %d/%d markets had data | %d/%d returned empty",
+        backfill_added,
+        backfill_with_data, len(backfill_markets),
+        backfill_empty, len(backfill_markets),
+    )
+    console.print(
+        f"  [dim]Backfilled     :[/] [bold]{backfill_added:,}[/]  trades  "
+        f"[dim]({backfill_with_data} with data / {backfill_empty} empty)[/]"
+    )
 
     console.print()
     return stats
