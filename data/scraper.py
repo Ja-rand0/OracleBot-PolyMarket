@@ -13,6 +13,37 @@ from data.models import Bet, Market
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# In-memory TTL cache
+# ---------------------------------------------------------------------------
+
+_cache: dict[str, tuple[Any, float]] = {}
+
+_TTL_MARKETS  = 300    # 5 min  — active market lists
+_TTL_PRICES   = 60     # 1 min  — orderbook / price history
+_TTL_TRADES   = 300    # 5 min  — trade history per market
+_TTL_HISTORY  = 3600   # 1 hour — resolved markets, on-chain data
+
+
+def _cache_get(key: str) -> Any:
+    entry = _cache.get(key)
+    if entry and time.monotonic() < entry[1]:
+        log.debug("Cache hit: %s", key[:60])
+        return entry[0]
+    _cache.pop(key, None)
+    return None
+
+
+def _cache_set(key: str, data: Any, ttl: int) -> None:
+    _cache[key] = (data, time.monotonic() + ttl)
+
+
+def clear_scraper_cache() -> None:
+    """Evict all cached API responses (e.g. after a forced refresh)."""
+    _cache.clear()
+    log.info("Scraper cache cleared")
+
+
+# ---------------------------------------------------------------------------
 # Session with retry / backoff
 # ---------------------------------------------------------------------------
 
@@ -87,6 +118,11 @@ def _parse_gamma_market(raw: dict) -> Market:
 
 def fetch_markets(active_only: bool = True, limit: int = 100, max_pages: int = 50) -> list[Market]:
     """Fetch markets from the Gamma API with offset pagination."""
+    key = f"markets:{active_only}:{limit}:{max_pages}"
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
+
     markets: list[Market] = []
     offset = 0
 
@@ -113,6 +149,7 @@ def fetch_markets(active_only: bool = True, limit: int = 100, max_pages: int = 5
         offset += limit
 
     log.info("Fetched %d markets total", len(markets))
+    _cache_set(key, markets, _TTL_MARKETS)
     return markets
 
 
@@ -170,6 +207,11 @@ def _parse_clob_market(raw: dict) -> Market:
 
 def fetch_resolved_markets(limit: int = 1000, max_pages: int = 10) -> list[Market]:
     """Fetch resolved/closed markets from the CLOB API (has winner data)."""
+    key = f"resolved_markets:{max_pages}"
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
+
     markets: list[Market] = []
     cursor = "MA=="  # base64 for "0"
 
@@ -195,6 +237,7 @@ def fetch_resolved_markets(limit: int = 1000, max_pages: int = 10) -> list[Marke
             break
 
     log.info("Fetched %d resolved markets total", len(markets))
+    _cache_set(key, markets, _TTL_HISTORY)
     return markets
 
 
@@ -205,7 +248,7 @@ def fetch_resolved_markets(limit: int = 1000, max_pages: int = 10) -> list[Marke
 def _parse_trade(raw: dict, condition_id: str) -> Bet:
     ts = raw.get("timestamp", 0)
     if isinstance(ts, (int, float)):
-        dt = datetime.utcfromtimestamp(ts)
+        dt = datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None)
     else:
         dt = datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -256,7 +299,14 @@ def fetch_trades_for_market(
     since: datetime | None = None,
 ) -> list[Bet]:
     """Fetch public trades for a market from the Data API.
-    API hard-caps at offset ~3500, so max_pages=7 at limit=500."""
+    API hard-caps at offset ~3500, so max_pages=7 at limit=500.
+    Full fetches (since=None) are cached for 5 min."""
+    if since is None:
+        key = f"trades:{condition_id}:{limit}:{max_pages}"
+        cached = _cache_get(key)
+        if cached is not None:
+            return cached
+
     data_api_url = "https://data-api.polymarket.com/trades"
     bets: list[Bet] = []
     offset = 0
@@ -293,6 +343,8 @@ def fetch_trades_for_market(
         offset += limit
 
     log.info("Fetched %d trades for market %s", len(bets), condition_id[:16])
+    if since is None:
+        _cache_set(key, bets, _TTL_TRADES)
     return bets
 
 
@@ -302,16 +354,27 @@ def fetch_trades_for_market(
 
 def fetch_orderbook(token_id: str) -> dict:
     """Fetch order book for a token from the CLOB API."""
+    key = f"orderbook:{token_id}"
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
     url = f"{config.POLYMARKET_BASE_URL}/book"
     data = _get(url, params={"token_id": token_id})
+    _cache_set(key, data, _TTL_PRICES)
     return data
 
 
 def fetch_price_history(condition_id: str, interval: str = "1d", fidelity: int = 60) -> list[dict]:
     """Fetch price history for a market. interval: 1h, 6h, 1d, 1w, max."""
+    key = f"price_history:{condition_id}:{interval}:{fidelity}"
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
     url = f"{config.POLYMARKET_BASE_URL}/prices-history"
     data = _get(url, params={"market": condition_id, "interval": interval, "fidelity": fidelity})
-    return data.get("history", []) if data else []
+    result = data.get("history", []) if data else []
+    _cache_set(key, result, _TTL_PRICES)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -323,6 +386,11 @@ def fetch_wallet_transactions(wallet: str, page: int = 1) -> list[dict]:
     if not config.POLYGONSCAN_API_KEY:
         log.warning("POLYGONSCAN_API_KEY not set — skipping on-chain lookup for %s", wallet[:10])
         return []
+
+    key = f"wallet_tx:{wallet}:{page}"
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
 
     params = {
         "module": "account",
@@ -336,15 +404,20 @@ def fetch_wallet_transactions(wallet: str, page: int = 1) -> list[dict]:
         "apikey": config.POLYGONSCAN_API_KEY,
     }
     data = _get(config.POLYGONSCAN_BASE_URL, params=params)
-    if data and data.get("status") == "1":
-        return data.get("result", [])
-    return []
+    result = data.get("result", []) if data and data.get("status") == "1" else []
+    _cache_set(key, result, _TTL_HISTORY)
+    return result
 
 
 def fetch_token_transfers(wallet: str, page: int = 1) -> list[dict]:
     """Fetch ERC-20 token transfers for a wallet from Polygonscan."""
     if not config.POLYGONSCAN_API_KEY:
         return []
+
+    key = f"wallet_erc20:{wallet}:{page}"
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
 
     params = {
         "module": "account",
@@ -358,6 +431,6 @@ def fetch_token_transfers(wallet: str, page: int = 1) -> list[dict]:
         "apikey": config.POLYGONSCAN_API_KEY,
     }
     data = _get(config.POLYGONSCAN_BASE_URL, params=params)
-    if data and data.get("status") == "1":
-        return data.get("result", [])
-    return []
+    result = data.get("result", []) if data and data.get("status") == "1" else []
+    _cache_set(key, result, _TTL_HISTORY)
+    return result
