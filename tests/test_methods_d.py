@@ -71,3 +71,32 @@ def test_d8_empty_bets(base_market):
     result = d8_boolean_sat(base_market, [], {})
     assert result.signal == 0.0
     assert result.confidence == 0.0
+
+
+# --- D9 ---
+
+from methods.discrete import d9_set_partition
+
+
+def test_d9_emotional_wallets_filtered(base_market):
+    # W1: rationality=0.2 < 0.4 → emotional → filtered out
+    # W2: rationality=0.6 >= 0.4 → clean → YES signal
+    bets = ([make_bet(wallet="W1", side="NO", amount=100) for _ in range(3)] +
+            [make_bet(wallet="W2", side="YES", amount=100) for _ in range(3)])
+    wallets = {"W1": make_wallet(address="W1", rationality=0.2),
+               "W2": make_wallet(address="W2", rationality=0.6)}
+    result = d9_set_partition(base_market, bets, wallets)
+    assert result.signal == pytest.approx(1.0)
+    assert all(b.wallet == "W2" for b in result.filtered_bets)
+
+def test_d9_all_clean_bets_unchanged(base_market):
+    # No wallet with rationality < 0.4 → all bets pass through
+    bets = [make_bet(wallet=f"W{i}", side="YES") for i in range(4)]
+    wallets = {f"W{i}": make_wallet(address=f"W{i}", rationality=0.7) for i in range(4)}
+    result = d9_set_partition(base_market, bets, wallets)
+    assert len(result.filtered_bets) == 4
+
+def test_d9_empty_bets(base_market):
+    result = d9_set_partition(base_market, [], {})
+    assert result.signal == 0.0
+    assert result.confidence == 0.0

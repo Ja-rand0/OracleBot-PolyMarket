@@ -1,6 +1,53 @@
 import pytest
-from methods.statistical import t19_zscore_outlier
+from methods.statistical import t17_bayesian, t18_benfords_law, t19_zscore_outlier
 from tests.conftest import make_bet, make_wallet
+
+
+# --- T17 ---
+
+def test_t17_smart_leans_yes_public_no(base_market):
+    # Smart wallets (rationality=0.7 >= T17_RATIONALITY_CUTOFF=0.58) bet YES at 500.
+    # Emotional wallets (rationality=0.3 < 0.58) bet NO at 100.
+    # Smart posterior > public posterior → divergence > 0 → signal > 0.
+    bets = ([make_bet(wallet=f"S{i}", side="YES", amount=500, odds=0.5)
+             for i in range(2)] +
+            [make_bet(wallet=f"E{i}", side="NO", amount=100, odds=0.5)
+             for i in range(8)])
+    wallets = ({f"S{i}": make_wallet(address=f"S{i}", rationality=0.7) for i in range(2)} |
+               {f"E{i}": make_wallet(address=f"E{i}", rationality=0.3) for i in range(8)})
+    result = t17_bayesian(base_market, bets, wallets)
+    assert result.signal > 0.0
+
+def test_t17_no_smart_wallets_balanced_bets(base_market):
+    # All wallets below T17_RATIONALITY_CUTOFF=0.58 (smart_count=0 → smart_posterior=prior).
+    # Equal YES and NO bets → public_posterior ≈ prior → divergence ≈ 0 → low signal.
+    bets = ([make_bet(wallet=f"W{i}", side="YES", amount=100, odds=0.5) for i in range(5)] +
+            [make_bet(wallet=f"W{i}", side="NO", amount=100, odds=0.5) for i in range(5, 10)])
+    wallets = {f"W{i}": make_wallet(address=f"W{i}", rationality=0.3) for i in range(10)}
+    result = t17_bayesian(base_market, bets, wallets)
+    assert result.metadata["smart_bets"] == 0
+    assert abs(result.signal) < 0.2   # balanced public → near-zero divergence
+
+def test_t17_empty_bets(base_market):
+    result = t17_bayesian(base_market, [], {})
+    assert result.signal == 0.0
+    assert result.confidence == 0.0
+
+
+# --- T18 ---
+
+def test_t18_all_same_amount_flagged(base_market):
+    # 20 bets all at amount=100 → all leading digits = 1 → chi2 >> threshold → suspicious.
+    bets = [make_bet(wallet=f"W{i}", side="YES", amount=100) for i in range(20)]
+    result = t18_benfords_law(base_market, bets, {})
+    assert result.metadata["is_suspicious"]
+    assert result.confidence > 0.5
+
+def test_t18_too_few_bets(base_market):
+    bets = [make_bet(wallet=f"W{i}", amount=100) for i in range(19)]
+    result = t18_benfords_law(base_market, bets, {})
+    assert result.signal == 0.0
+    assert result.confidence == 0.0
 
 
 def test_t19_large_rational_bet_signals_yes(base_market):
