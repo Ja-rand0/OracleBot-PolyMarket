@@ -12,7 +12,7 @@ import schedule
 import config
 from data import db
 from data.models import Bet, Wallet
-from data.scraper import fetch_markets, fetch_resolved_markets, fetch_trades_for_market
+from data.scraper import fetch_markets, fetch_resolved_markets, fetch_trades_for_market, fetch_leaderboard
 from engine.backtest import split_holdout
 from engine.combinator import run_full_optimization
 from engine.report import generate_report
@@ -119,6 +119,14 @@ def update_wallet_stats(conn) -> dict[str, Wallet]:
 def collect_data(conn) -> None:
     """Fetch markets and trades, store in DB."""
     log.info("=== Starting data collection cycle ===")
+
+    # Seed wallet table with known sharp traders from leaderboard (INSERT OR IGNORE)
+    try:
+        leaderboard = fetch_leaderboard(limit=200, time_period="ALL", order_by="PNL")
+        seeded = db.seed_wallets_batch(conn, leaderboard)
+        log.info("Leaderboard seed: %d new wallets added (200 fetched)", seeded)
+    except Exception:
+        log.warning("Leaderboard seeding failed — continuing without it")
 
     # Fetch active markets (metadata only — cheap)
     markets = fetch_markets(active_only=True)

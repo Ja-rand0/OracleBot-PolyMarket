@@ -344,6 +344,33 @@ def upsert_wallet(conn: sqlite3.Connection, w: Wallet) -> None:
     conn.commit()
 
 
+def seed_wallets_batch(conn: sqlite3.Connection, wallet_entries: list[dict]) -> int:
+    """Insert new wallets from leaderboard data without overwriting existing records.
+
+    wallet_entries: list of {"address": str, "volume": float, "pnl": float}
+    Returns count of newly inserted rows.
+    """
+    now = _ts(datetime.now(timezone.utc).replace(tzinfo=None))
+    rows = [
+        (e["address"], now, 0, float(e.get("volume") or 0), 0.0, 0.5, 0, 0)
+        for e in wallet_entries
+        if e.get("address")
+    ]
+    if not rows:
+        return 0
+    cur = conn.executemany(
+        """
+        INSERT OR IGNORE INTO wallets
+            (address, first_seen, total_bets, total_volume,
+             win_rate, rationality_score, flagged_suspicious, flagged_sandpit)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        rows,
+    )
+    conn.commit()
+    return cur.rowcount
+
+
 def get_wallet(conn: sqlite3.Connection, address: str) -> Optional[Wallet]:
     row = conn.execute("SELECT * FROM wallets WHERE address = ?", (address,)).fetchone()
     if row is None:
