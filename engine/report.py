@@ -122,10 +122,14 @@ def generate_report(
     # If market says 95% NO and bot also says NO, there's no edge (market agrees).
     def _edge_score(entry):
         _market, _ratio, signal, confidence, _n, price = entry
-        # Bot's implied probability: signal > 0 means YES, mapped to 0.5–1.0
-        bot_prob = 0.5 + signal * 0.5   # signal=+1 → 1.0, signal=-1 → 0.0
+        # Directional score: linear rescaling of signal [-1,+1] → [0,1].
+        # NOT a calibrated probability — it is a display convenience only.
+        # A score of 0.8 does NOT mean "80% chance of YES"; it means the
+        # combo's net signal leans strongly YES. Proper calibration (Platt
+        # scaling / isotonic regression) requires 500+ resolved markets.
+        directional_score = 0.5 + signal * 0.5   # signal=+1 → 1.0, signal=-1 → 0.0
         # Edge = how far bot diverges from market, weighted by confidence
-        return abs(bot_prob - price) * confidence
+        return abs(directional_score - price) * confidence
 
     market_scores.sort(key=_edge_score, reverse=True)
 
@@ -141,15 +145,15 @@ def generate_report(
     for i, (market, ratio, signal, confidence, n_bets, price) in enumerate(market_scores[:3]):
         side = "YES" if signal > 0 else "NO"
         buy_price = price if signal > 0 else (1 - price)
-        bot_prob = 0.5 + signal * 0.5
-        edge = abs(bot_prob - price) * confidence
+        directional_score = 0.5 + signal * 0.5
+        edge = abs(directional_score - price) * confidence
         lines.append(f"### #{i+1}  BET {side}")
         lines.append(f"**{market.title}**")
         lines.append(f"")
         lines.append(f"- **Action:** Buy **{side}** shares")
         lines.append(f"- **Current YES price:** ${price:.2f}  |  **Current NO price:** ${1-price:.2f}")
         lines.append(f"- **You buy at:** ${buy_price:.2f}  |  **Pays:** $1.00 if correct")
-        lines.append(f"- **Bot says:** {bot_prob:.0%} YES  vs  market {price:.0%}  |  **Edge:** {edge:.2f}")
+        lines.append(f"- **Score:** {directional_score:.0%} YES  vs  market {price:.0%}  |  **Edge:** {edge:.2f}")
         lines.append(f"- **Confidence:** {confidence:.2f}  |  **Madness Ratio:** {ratio:.2f}  |  **Bets Analyzed:** {n_bets}")
         if market.description:
             desc = market.description[:200].replace("\n", " ")
@@ -165,8 +169,8 @@ def generate_report(
     for i, (market, ratio, signal, confidence, n_bets, price) in enumerate(market_scores[:20]):
         side = "YES" if signal > 0 else "NO" if signal < 0 else "—"
         buy_price = price if signal > 0 else (1 - price) if signal < 0 else 0
-        bot_prob = 0.5 + signal * 0.5
-        edge = abs(bot_prob - price) * confidence
+        directional_score = 0.5 + signal * 0.5
+        edge = abs(directional_score - price) * confidence
         title = market.title[:50]
         lines.append(
             f"| {i+1} | {title} | BET {side} | ${buy_price:.2f} | "

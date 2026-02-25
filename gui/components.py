@@ -37,11 +37,9 @@ CATEGORY_NAMES = {
 # ---------------------------------------------------------------------------
 METHOD_INFO: dict[str, tuple[str, str]] = {
     "S1": ("S", "Win rate outlier detection"),
-    "S2": ("S", "Bet timing analysis"),
     "S3": ("S", "Coordination clustering"),
     "S4": ("S", "Sandpit filter"),
     "D5": ("D", "Vacuous truth / implication logic"),
-    "D6": ("D", "PageRank wallet influence"),
     "D7": ("D", "Pigeonhole noise filtering"),
     "D8": ("D", "Boolean SAT structure analysis"),
     "D9": ("D", "Set partition (clean vs noise)"),
@@ -60,7 +58,6 @@ METHOD_INFO: dict[str, tuple[str, str]] = {
     "P22": ("P", "Herding behavior detection"),
     "P23": ("P", "Anchoring bias tracking"),
     "P24": ("P", "Wisdom vs madness ratio"),
-    "M25": ("M", "Wallet bet-size escalation"),
     "M26": ("M", "Market phase transitions"),
     "M27": ("M", "Bet flow momentum"),
     "M28": ("M", "Smart-follow sequencing"),
@@ -113,8 +110,10 @@ def render_pick_card(rank: int, title: str, side: str, yes_price: float,
     border_color = COLORS["yes"] if side == "YES" else COLORS["no"]
     side_col = COLORS["yes"] if side == "YES" else COLORS["no"]
     buy_price = yes_price if side == "YES" else (1 - yes_price)
-    bot_prob = (yes_price + edge / max(confidence, 0.01)) if side == "YES" else (yes_price - edge / max(confidence, 0.01))
-    bot_prob = max(0, min(1, bot_prob))
+    # implied_score: rough display estimate of where the bot thinks YES sits.
+    # Not a calibrated probability — edge / confidence is a heuristic rescaling.
+    implied_score = (yes_price + edge / max(confidence, 0.01)) if side == "YES" else (yes_price - edge / max(confidence, 0.01))
+    implied_score = max(0, min(1, implied_score))
 
     st.markdown(
         f"""<div style="border:2px solid {border_color};border-radius:8px;padding:16px;margin-bottom:12px">

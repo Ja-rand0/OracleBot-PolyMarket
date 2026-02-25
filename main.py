@@ -64,7 +64,13 @@ def update_wallet_stats(conn) -> dict[str, Wallet]:
 
         win_rate = wins / resolved_bets if resolved_bets > 0 else 0.0
         round_ratio = round_bets / total_bets if total_bets > 0 else 0.0
-        rationality = max(0.0, min(1.0, win_rate * 0.5 + (1 - round_ratio) * 0.3 + 0.2))
+        # Rationality score: provisional heuristic combining two behavioural signals.
+        # Weights (0.5 / 0.3) are engineering estimates, not empirically validated.
+        #   win_rate * 0.5      — track record; winning bets suggest informed decisions
+        #   (1-round_ratio)*0.3 — precision proxy; non-round amounts suggest deliberate sizing
+        # Max possible score: 0.8 (not 1.0) — acknowledges that no wallet is "perfectly rational".
+        # To validate: correlate rationality_score against future win_rate on held-out markets.
+        rationality = max(0.0, min(1.0, win_rate * 0.5 + (1 - round_ratio) * 0.3))
 
         try:
             fs = datetime.strptime(first_seen_str, "%Y-%m-%dT%H:%M:%SZ")

@@ -102,8 +102,6 @@ threshold_groups = {
     "S — Suspicious": [
         ("S1_MIN_RESOLVED_BETS", config.S1_MIN_RESOLVED_BETS),
         ("S1_STDDEV_THRESHOLD", config.S1_STDDEV_THRESHOLD),
-        ("S2_LATE_STAGE_FRACTION", config.S2_LATE_STAGE_FRACTION),
-        ("S2_HIGH_CONVICTION_ODDS", config.S2_HIGH_CONVICTION_ODDS),
         ("S3_TIME_WINDOW_MINUTES", config.S3_TIME_WINDOW_MINUTES),
         ("S3_MIN_CO_MARKETS", config.S3_MIN_CO_MARKETS),
         ("S3_MIN_CLUSTER_SIZE", config.S3_MIN_CLUSTER_SIZE),
@@ -144,11 +142,6 @@ threshold_groups = {
         ("P24_HIGH_RATIO", config.P24_HIGH_RATIO),
     ],
     "M — Markov": [
-        ("M25_MIN_WALLET_BETS", config.M25_MIN_WALLET_BETS),
-        ("M25_SMALL_MULTIPLIER", config.M25_SMALL_MULTIPLIER),
-        ("M25_LARGE_MULTIPLIER", config.M25_LARGE_MULTIPLIER),
-        ("M25_ESCALATION_THRESHOLD", config.M25_ESCALATION_THRESHOLD),
-        ("M25_CONFIDENCE_CAP", config.M25_CONFIDENCE_CAP),
         ("M26_NUM_WINDOWS", config.M26_NUM_WINDOWS),
         ("M26_LOW_THRESHOLD", config.M26_LOW_THRESHOLD),
         ("M26_HIGH_THRESHOLD", config.M26_HIGH_THRESHOLD),

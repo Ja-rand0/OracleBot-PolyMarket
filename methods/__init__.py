@@ -1,5 +1,5 @@
 """
-Method registry — all 28 analysis methods registered here.
+Method registry — all 25 analysis methods registered here.
 
 Each method is a callable with signature:
     (market: Market, bets: list[Bet], wallets: dict[str, Wallet]) -> MethodResult
@@ -10,7 +10,7 @@ Methods are grouped by category:
     E  (E10-E16) — Emotional bias filters
     T  (T17-T19) — Statistical analysis
     P  (P20-P24) — Psychological / sociological signals
-    M  (M25-M28) — Markov chain / temporal transition analysis
+    M  (M26-M28) — Markov chain / temporal transition analysis
 """
 from __future__ import annotations
 
@@ -24,12 +24,12 @@ MethodFn = Callable[[Market, list[Bet], dict[str, Wallet]], MethodResult]
 METHODS: dict[str, tuple[MethodFn, str, str]] = {}
 
 CATEGORIES = {
-    "S": ["S1", "S3", "S4"],        # S2 removed: interchangeable with S1, subadditive
-    "D": ["D5", "D7", "D8", "D9"],  # D6 removed: never top-25, adds graph overhead
+    "S": ["S1", "S3", "S4"],
+    "D": ["D5", "D7", "D8", "D9"],
     "E": ["E10", "E11", "E12", "E13", "E14", "E15", "E16"],
     "T": ["T17", "T18", "T19"],
     "P": ["P20", "P21", "P22", "P23", "P24"],
-    "M": ["M26", "M27", "M28"],     # M25 removed: actively hurts M26+M28 combos
+    "M": ["M26", "M27", "M28"],
 }
 
 

@@ -17,7 +17,7 @@ You are **read-only**. You never modify source code or the database. You report 
 
 ## Project Context
 
-- **28 methods** across 6 categories: S (suspicious, S1-S4), D (discrete, D5-D9), E (emotional, E10-E16), T (statistical, T17-T19), P (psychological, P20-P24), M (Markov, M25-M28)
+- **25 methods** across 6 categories: S (suspicious, S1/S3/S4), D (discrete, D5/D7-D9), E (emotional, E10-E16), T (statistical, T17-T19), P (psychological, P20-P24), M (Markov, M26-M28)
 - **Combinator**: Tier 1 (within-category) → Tier 2 (cross-category) → Tier 3 (hill-climb). Top 50 results stored.
 - **Fitness formula**: `accuracy*0.35 + edge_vs_market*0.35 - false_positive_rate*0.20 - (complexity/TOTAL_METHODS)*0.10`
 - **DB**: SQLite at `polymarket.db`. Schema below.

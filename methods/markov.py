@@ -1,4 +1,4 @@
-"""M25-M28: Markov chain / temporal transition analysis methods."""
+"""M26-M28: Markov chain / temporal transition analysis methods."""
 from __future__ import annotations
 
 import logging
@@ -12,7 +12,6 @@ from methods import register
 log = logging.getLogger(__name__)
 
 # State index constants
-_SMALL, _MEDIUM, _LARGE = 0, 1, 2
 _LOW, _MID, _HIGH = 0, 1, 2
 _YES_HEAVY, _BALANCED, _NO_HEAVY = 0, 1, 2
 _SMART_LEADS, _MIXED, _RETAIL_LEADS = 0, 1, 2
@@ -66,88 +65,6 @@ def _time_windows(bets: list[Bet], num_windows: int) -> list[list[Bet]]:
 def _normalize_odds(bet: Bet) -> float:
     """Return YES probability (odds always stores YES probability post-B001 fix)."""
     return bet.odds
-
-
-# ---------------------------------------------------------------------------
-# M25 -- Wallet Regime Detection
-# ---------------------------------------------------------------------------
-
-@register("M25", "M", "Wallet bet-size escalation detection")
-def m25_wallet_regime(
-    market: Market, bets: list[Bet], wallets: dict[str, Wallet]
-) -> MethodResult:
-    if len(bets) < 5:
-        return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets,
-                            metadata={"reason": "insufficient bets"})
-
-    # Group bets by wallet, sorted by time
-    by_wallet: dict[str, list[Bet]] = defaultdict(list)
-    for b in bets:
-        by_wallet[b.wallet].append(b)
-
-    escalating_wallets: set[str] = set()
-    escalation_scores: list[float] = []
-
-    for addr, wbets in by_wallet.items():
-        if len(wbets) < config.M25_MIN_WALLET_BETS:
-            continue
-
-        wbets.sort(key=lambda b: b.timestamp)
-        amounts = [b.amount for b in wbets]
-        med = median(amounts)
-        if med <= 0:
-            continue
-
-        # Classify each bet into size tier
-        states: list[int] = []
-        for b in wbets:
-            if b.amount < med * config.M25_SMALL_MULTIPLIER:
-                states.append(_SMALL)
-            elif b.amount > med * config.M25_LARGE_MULTIPLIER:
-                states.append(_LARGE)
-            else:
-                states.append(_MEDIUM)
-
-        if len(states) < 2:
-            continue
-
-        tm = _build_transition_matrix(states, 3)
-        # Escalation = average of upward transition probabilities
-        esc = (tm[_SMALL][_MEDIUM] + tm[_MEDIUM][_LARGE] + tm[_SMALL][_LARGE]) / 3.0
-        escalation_scores.append(esc)
-
-        if esc >= config.M25_ESCALATION_THRESHOLD:
-            escalating_wallets.add(addr)
-
-    if not escalation_scores:
-        return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets,
-                            metadata={"reason": "no wallets with enough bets"})
-
-    if not escalating_wallets:
-        return MethodResult(signal=0.0, confidence=0.1, filtered_bets=bets,
-                            metadata={"wallets_analyzed": len(escalation_scores),
-                                      "escalating_wallets": 0,
-                                      "avg_escalation_score": sum(escalation_scores) / len(escalation_scores)})
-
-    # Signal from escalating wallets' direction
-    yes_vol = sum(b.amount for b in bets if b.wallet in escalating_wallets and b.side == "YES")
-    no_vol = sum(b.amount for b in bets if b.wallet in escalating_wallets and b.side == "NO")
-    total = yes_vol + no_vol
-    signal = (yes_vol - no_vol) / total if total > 0 else 0.0
-    confidence = min(1.0, len(escalating_wallets) / config.M25_CONFIDENCE_CAP)
-
-    return MethodResult(
-        signal=signal,
-        confidence=confidence,
-        filtered_bets=bets,
-        metadata={
-            "wallets_analyzed": len(escalation_scores),
-            "escalating_wallets": len(escalating_wallets),
-            "avg_escalation_score": sum(escalation_scores) / len(escalation_scores),
-            "yes_vol": yes_vol,
-            "no_vol": no_vol,
-        },
-    )
 
 
 # ---------------------------------------------------------------------------

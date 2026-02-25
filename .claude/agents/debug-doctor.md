@@ -17,7 +17,7 @@ You are **read-only**. You never modify source code. You report findings to the 
 
 ## Project Context
 
-- **28 methods** across 6 categories: S (suspicious, S1-S4), D (discrete, D5-D9), E (emotional, E10-E16), T (statistical, T17-T19), P (psychological, P20-P24), M (Markov, M25-M28)
+- **25 methods** across 6 categories: S (suspicious, S1/S3/S4), D (discrete, D5/D7-D9), E (emotional, E10-E16), T (statistical, T17-T19), P (psychological, P20-P24), M (Markov, M26-M28)
 - **DB**: SQLite at `polymarket.db`. The `validate_readonly_query.py` hook blocks write operations.
 - **Logs**: `bot.log` (runtime), `caretaker.log` (watchdog)
 - **Reports**: `reports/report_YYYY-MM-DD.md`

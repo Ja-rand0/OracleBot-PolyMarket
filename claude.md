@@ -4,7 +4,7 @@
 
 Read-only analytics bot that detects **sharp money** (informed/insider bets) on Polymarket by:
 1. Filtering out emotional/irrational bets using behavioral economics
-2. Applying 28 detection methods across 6 categories
+2. Applying 25 detection methods across 6 categories
 3. Brute-force testing every method combination for optimal signal extraction
 4. Ranking markets by exploitable edge (bot vs. market disagreement)
 
@@ -56,7 +56,7 @@ Read-only analytics bot that detects **sharp money** (informed/insider bets) on 
 
 **Engine**: `FITNESS_W_ACCURACY=0.35`, `FITNESS_W_EDGE=0.35`, `FITNESS_W_FALSE_POS=0.20`, `FITNESS_W_COMPLEXITY=0.10`, `BACKTEST_CUTOFF_FRACTION`, `TIER1_TOP_PER_CATEGORY`, `TIER2_TOP_OVERALL`, `SCRAPE_INTERVAL_MINUTES`, `DB_PATH`
 
-**Method thresholds**: `S1_MIN_RESOLVED_BETS`, `S1_STDDEV_THRESHOLD`, `S2_LATE_STAGE_FRACTION`, `S2_HIGH_CONVICTION_ODDS`, `S3_TIME_WINDOW_MINUTES`, `S3_MIN_CLUSTER_SIZE`, `S4_SANDPIT_MIN_BETS`, `S4_SANDPIT_MAX_WIN_RATE`, `S4_SANDPIT_MIN_VOLUME`, `S4_NEW_WALLET_MAX_BETS`, `S4_NEW_WALLET_LARGE_BET`, `D7_MIN_BETS`, `E10_MIN_MARKETS`, `E10_CONSISTENCY_THRESHOLD`, `E12_WINDOW_HOURS`, `E13_VOLUME_SPIKE_MULTIPLIER`, `E14_LOW_CORRELATION_THRESHOLD`, `E15_ROUND_DIVISOR`, `E16_KL_THRESHOLD`, `T17_AMOUNT_NORMALIZER`, `T17_UPDATE_STEP`, `T17_RATIONALITY_CUTOFF`, `T18_CHI_SQUARED_PVALUE`, `T19_ZSCORE_THRESHOLD`, `P20_DEVIATION_THRESHOLD`, `P21_LOW_PROB`, `P21_HIGH_PROB`, `P22_MIN_HERD_SIZE`, `P22_TIME_WINDOW_MINUTES`, `P23_ANCHOR_MIN_AMOUNT`, `P24_HIGH_RATIO`, `P24_LOW_RATIO`, `M25_MIN_WALLET_BETS`, `M25_SMALL_MULTIPLIER`, `M25_LARGE_MULTIPLIER`, `M25_ESCALATION_THRESHOLD`, `M25_CONFIDENCE_CAP`, `M26_NUM_WINDOWS`, `M26_LOW_THRESHOLD`, `M26_HIGH_THRESHOLD`, `M26_TRENDING_THRESHOLD`, `M27_NUM_WINDOWS`, `M27_FLOW_THRESHOLD`, `M27_MOMENTUM_THRESHOLD`, `M28_SMART_THRESHOLD`, `M28_RETAIL_THRESHOLD`, `M28_NUM_WINDOWS`, `M28_MIN_SMART_WALLETS`, `M28_MIN_RETAIL_WALLETS`, `REPORT_PRICE_RECENT_TRADES`, `REPORT_PRICE_MIN_TRADES`, `TOTAL_METHODS`
+**Method thresholds**: `S1_MIN_RESOLVED_BETS`, `S1_STDDEV_THRESHOLD`, `S3_TIME_WINDOW_MINUTES`, `S3_MIN_CLUSTER_SIZE`, `S4_SANDPIT_MIN_BETS`, `S4_SANDPIT_MAX_WIN_RATE`, `S4_SANDPIT_MIN_VOLUME`, `S4_NEW_WALLET_MAX_BETS`, `S4_NEW_WALLET_LARGE_BET`, `D7_MIN_BETS`, `E10_MIN_MARKETS`, `E10_CONSISTENCY_THRESHOLD`, `E12_WINDOW_HOURS`, `E13_VOLUME_SPIKE_MULTIPLIER`, `E14_LOW_CORRELATION_THRESHOLD`, `E15_ROUND_DIVISOR`, `E16_KL_THRESHOLD`, `T17_AMOUNT_NORMALIZER`, `T17_UPDATE_STEP`, `T17_RATIONALITY_CUTOFF`, `T18_CHI_SQUARED_PVALUE`, `T19_ZSCORE_THRESHOLD`, `P20_DEVIATION_THRESHOLD`, `P21_LOW_PROB`, `P21_HIGH_PROB`, `P22_MIN_HERD_SIZE`, `P22_TIME_WINDOW_MINUTES`, `P23_ANCHOR_MIN_AMOUNT`, `P24_HIGH_RATIO`, `P24_LOW_RATIO`, `M26_NUM_WINDOWS`, `M26_LOW_THRESHOLD`, `M26_HIGH_THRESHOLD`, `M26_TRENDING_THRESHOLD`, `M27_NUM_WINDOWS`, `M27_FLOW_THRESHOLD`, `M27_MOMENTUM_THRESHOLD`, `M28_SMART_THRESHOLD`, `M28_RETAIL_THRESHOLD`, `M28_NUM_WINDOWS`, `M28_MIN_SMART_WALLETS`, `M28_MIN_RETAIL_WALLETS`, `REPORT_PRICE_RECENT_TRADES`, `REPORT_PRICE_MIN_TRADES`, `TOTAL_METHODS`
 
 ---
 
@@ -75,14 +75,14 @@ data/
   scraper.py            — API ingestion (Gamma=markets, Data=trades, CLOB=orderbook, Polygonscan=on-chain)
 
 methods/
-  __init__.py           — registry (28 methods, @register decorator, MethodFn type)
+  __init__.py           — registry (25 methods, @register decorator, MethodFn type)
   suspicious.py         — S1-S4: wallet-level anomaly detection
   discrete.py           — D5-D9: mathematical structure analysis
   emotional.py          — E10-E16: behavioral bias filtering
   statistical.py        — T17-T19: statistical outlier detection
   psychological.py      — P20-P24: market psychology signals
-  markov.py             — M25-M28: Markov chain temporal transition analysis
-  CLAUDE.md             — full algorithm specs for all 28 methods
+  markov.py             — M26-M28: Markov chain temporal transition analysis
+  CLAUDE.md             — full algorithm specs for all 25 methods
 
 engine/
   fitness.py            — scoring: accuracy*0.35 + edge*0.35 - FPR*0.20 - complexity*0.10
@@ -149,18 +149,16 @@ confidence = sum(r.confidence for r in results) / len(results)
 
 ---
 
-## Detection Methods (28 total)
+## Detection Methods (25 total)
 
 > Full algorithm details (thresholds, formulas, deps): `methods/CLAUDE.md`
 
 | ID | Name | Detects |
 |----|------|---------|
 | **S1** | Win Rate Outlier | Wallets with statistically abnormal win rates |
-| **S2** | Bet Timing | Late-stage high-conviction bets (insider timing) *(excluded)* |
 | **S3** | Coordination Clustering | Coordinated wallet groups (Louvain, networkx+louvain) |
 | **S4** | Sandpit Filter | Bait/trap accounts — removes them from signal |
 | **D5** | Vacuous Truth | Markets already near-certain (≥0.95 or ≤0.05 odds) |
-| **D6** | PageRank | Influential wallets in the copy-trading graph (networkx) *(excluded)* |
 | **D7** | Pigeonhole Noise | Too many "sharp" wallets → noise discount |
 | **D8** | Boolean SAT | Structural bet distribution skew (≥80% one side) |
 | **D9** | Set Partition | Separates rational bets from emotional (master filter) |
@@ -179,7 +177,6 @@ confidence = sum(r.confidence for r in results) / len(results)
 | **P22** | Herding | Temporal clustering of same-side bets (O(n) two-pointer) |
 | **P23** | Anchoring | Market price stuck on the first large bet's anchor |
 | **P24** | Wisdom vs Madness | % emotional bets → market exploitability meta-signal |
-| **M25** | Wallet Regime | Bet size escalation per wallet (informed accumulation) *(excluded)* |
 | **M26** | Market Phases | Trending vs. mean-reverting price dynamics (Markov) |
 | **M27** | Flow Momentum | Persistent directional bet flow vs. oscillation (Markov) |
 | **M28** | Smart-Follow | Smart money leading retail in temporal order (Markov) |
@@ -436,7 +433,7 @@ method_results(id INTEGER PK AUTO, combo_id UNIQUE, methods_used JSON, accuracy,
 
 | Milestone | Trigger | Agent | Why |
 |-----------|---------|-------|-----|
-| **M1** | First full combinator run with M25-M28 | `backtest-analyst` | Interpret whether Markov methods improve fitness. **Done (Session 5).** |
+| **M1** | First full combinator run with M26-M28 | `backtest-analyst` | Interpret whether Markov methods improve fitness. **Done (Session 5).** |
 | **M2** | Stable top-10 combos | `method-auditor` | Prune: which methods never appear in winners? Which are correlated? **Done (Session 7).** |
 | **M3** | `method-auditor` finds threshold issues | `threshold-tuner` | Optimize constants systematically |
 | **M4** | Source data APIs integrated | `api-health-checker` | Monitor 10+ endpoints before they become unmanageable |

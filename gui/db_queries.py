@@ -427,7 +427,7 @@ def get_top_combos(limit: int = 50) -> pd.DataFrame:
 def get_method_performance() -> pd.DataFrame:
     """Derive per-method stats from combo-level results.
 
-    For each of the 28 methods, computes:
+    For each of the 25 methods, computes:
     - frequency: how many combos include this method
     - avg_fitness_present: mean fitness when this method is in the combo
     - avg_fitness_absent: mean fitness when it is NOT in the combo

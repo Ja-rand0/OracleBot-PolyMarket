@@ -154,7 +154,7 @@ def _parse_clob_market(raw: dict) -> Market:
     if created_at is None or created_at > end_date:
         # Fallback: assume market ran for 30 days before end_date
         created_at = end_date - timedelta(days=30)
-        log.warning("CLOB market %s missing created_at — using 30-day fallback (may distort S2 timing)",
+        log.warning("CLOB market %s missing created_at — using 30-day fallback (lifespan estimate unreliable)",
                      raw.get("condition_id", "?")[:16])
 
     return Market(

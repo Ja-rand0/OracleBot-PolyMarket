@@ -58,7 +58,7 @@ class MethodResult:
 
 @dataclass
 class ComboResults:
-    combo_id: str          # e.g. "S1,S2,E14,T17"
+    combo_id: str          # e.g. "E10,E15,T17"
     methods_used: list[str] = field(default_factory=list)
     accuracy: float = 0.0
     edge_vs_market: float = 0.0

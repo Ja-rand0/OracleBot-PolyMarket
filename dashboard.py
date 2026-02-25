@@ -313,8 +313,8 @@ def display_report(conn, picks: list | None = None):
             price = entry[5] if len(entry) > 5 else 0.5
             side = "YES" if signal > 0 else "NO"
             buy_price = price if signal > 0 else (1 - price)
-            bot_prob = 0.5 + signal * 0.5
-            edge = abs(bot_prob - price) * confidence
+            directional_score = 0.5 + signal * 0.5
+            edge = abs(directional_score - price) * confidence
             side_style = "bold green" if signal > 0 else "bold red"
             border = "green" if signal > 0 else "red"
 
@@ -326,7 +326,7 @@ def display_report(conn, picks: list | None = None):
             pick_table.add_row("YES price", f"${price:.2f}")
             pick_table.add_row("NO price", f"${1-price:.2f}")
             pick_table.add_row("You buy at", f"[bold]${buy_price:.2f}[/]  →  pays [bold]$1.00[/] if correct")
-            pick_table.add_row("Bot says", f"{bot_prob:.0%} YES  vs  market {price:.0%}")
+            pick_table.add_row("Score", f"{directional_score:.0%} YES  vs  market {price:.0%}")
             pick_table.add_row("Edge", f"[bold yellow]{edge:.2f}[/]")
             pick_table.add_row("Confidence", f"{confidence:.2f}")
             pick_table.add_row("Madness", f"{ratio:.2f}")
@@ -358,8 +358,8 @@ def display_report(conn, picks: list | None = None):
                 price = entry[5] if len(entry) > 5 else 0.5
                 side = "YES" if signal > 0 else "NO" if signal < 0 else "—"
                 buy_price = price if signal > 0 else (1 - price) if signal < 0 else 0
-                bot_prob = 0.5 + signal * 0.5
-                edge = abs(bot_prob - price) * confidence
+                directional_score = 0.5 + signal * 0.5
+                edge = abs(directional_score - price) * confidence
                 side_style = "green" if signal > 0 else "red"
                 rt.add_row(
                     str(i),

@@ -4,14 +4,14 @@ A read-only analytics bot that detects **sharp money** (informed/insider bets) o
 
 **Core Philosophy:** Most bettors exhibit irrational, emotional, or manipulative behaviors. By identifying and filtering these out, the bot uncovers the true underlying signal driven by informed participants.
 
-## Detection Methods (28 total, 6 categories)
+## Detection Methods (25 total, 6 categories)
 
-- **S (Suspicious):** Wallet-level anomaly detection — win rate outliers, bet timing, coordination clustering, sandpit filtering
-- **D (Discrete):** Structural analysis — PageRank influence, pigeonhole noise, Boolean SAT, set partitioning
+- **S (Suspicious):** Wallet-level anomaly detection — win rate outliers, coordination clustering, sandpit filtering
+- **D (Discrete):** Structural analysis — vacuous truth, pigeonhole noise, Boolean SAT, set partitioning
 - **E (Emotional):** Bias filtering — loyalty, recency, revenge betting, hype detection, round numbers, KL divergence
 - **T (Statistical):** Bayesian updating, Benford's law, z-score outlier detection
 - **P (Psychological):** Nash deviation, prospect theory, herding, anchoring, wisdom vs. madness
-- **M (Markov):** Temporal transition analysis — wallet regime detection, market phase transitions, bet flow momentum, smart-follow sequencing
+- **M (Markov):** Temporal transition analysis — market phase transitions, bet flow momentum, smart-follow sequencing
 
 Methods are combined and tested via a 3-tier brute-force combinator (within-category → cross-category → hill-climb) scored by a fitness function balancing accuracy, edge, false positive rate, and complexity.
 

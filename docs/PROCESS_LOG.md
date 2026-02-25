@@ -467,3 +467,133 @@
 - `data/db.py` — `get_resolved_markets_needing_backfill()`
 - `main.py` — `MAX_BACKFILL_FETCHES` constant, backfill loop
 - `dashboard.py` — `MAX_BACKFILL_FETCHES` constant, backfill loop with progress bar
+
+---
+
+### Session 12 — Test Suite + Engineering Review Fixes (2026-02-24)
+
+**Context:** Mock "engineering lead / recruiter" grill session surfaced 5 concerns about code quality. Session 12 addressed all 5.
+
+---
+
+#### B035 — Unit test suite: zero tests existed (Fixed)
+
+**Risk:** Without deterministic unit tests, method regressions are invisible. Every bug required manual `test_pipeline.py` runs against live APIs (slow, non-reproducible, no assertions).
+
+**Fix:**
+- Added `pytest` to `requirements.txt`
+- Created `pytest.ini` with `testpaths = tests`, `pythonpath = .`
+- Created `tests/__init__.py`, `tests/conftest.py` (shared fixtures: `base_market`, `make_bet`, `make_wallet`, in-memory SQLite `mem_conn`)
+- Created 6 test files, 33 tests total:
+  - `tests/test_methods_e.py` — E10 (loyalty bias), E15 (round numbers), E16 (KL divergence): 9 tests
+  - `tests/test_methods_d.py` — D5 (vacuous truth), D7 (pigeonhole), D8 (boolean SAT): 11 tests
+  - `tests/test_methods_t.py` — T19 (z-score outlier): 4 tests
+  - `tests/test_engine.py` — `calculate_fitness`, `split_holdout`, `backtest_combo`: 6 tests
+  - `tests/test_db.py` — holdout validation insert/query: 3 tests
+
+**Plan corrections applied during implementation (3 bugs in the plan):**
+- E10 empty bets: code returns `confidence=0.1` (not `0.0`) — fixed assertion
+- E16 skewed test: 9YES/1NO gives KL≈0.368, below threshold 0.5 → wallet NOT flagged; changed to 10YES/0NO (KL≈0.693 > 0.5)
+- T19 large bet: 5-bet fixture gives z≈2.0 < threshold 2.5 → no signal; changed to 10-bet fixture (z≈3.0)
+
+**Files modified:** `requirements.txt`, `pytest.ini` (new), `tests/__init__.py` (new), `tests/conftest.py` (new), `tests/test_methods_e.py` (new), `tests/test_methods_d.py` (new), `tests/test_methods_t.py` (new), `tests/test_engine.py` (new), `tests/test_db.py` (new)
+
+---
+
+#### B036 — Rationality formula +0.2 constant floor (Fixed)
+
+**Risk:** `rationality = win_rate * 0.5 + (1 - round_ratio) * 0.3 + 0.2` meant the worst possible wallet scored 0.2, not 0.0. Range was [0.2, 1.0] instead of [0.0, 0.8]. Every wallet was inflated by +0.2, making T19's rationality-weighted z-score imprecise (even noise wallets appeared "somewhat rational").
+
+**Fix:** Removed `+ 0.2` constant from `main.py:67`. Range is now [0.0, 0.8].
+
+**Note:** The weights (0.5 / 0.3) and max score of 0.8 are still provisional heuristics — added inline documentation explaining this and what validation would require.
+
+**Files modified:** `main.py` line 67
+
+---
+
+#### B037 — Dead code: S2, D6, M25 registered but excluded from all combos (Fixed)
+
+**Risk:** Three methods were decorated with `@register` and had their constants defined in `config.py`, but were explicitly excluded from `CATEGORIES` (never selected by the combinator). They consumed config namespace, confused method counts (`TOTAL_METHODS = 28` was wrong), and created false impressions of coverage.
+
+**Fix:**
+- Deleted `s2_bet_timing` function from `methods/suspicious.py`
+- Deleted `d6_pagerank` function from `methods/discrete.py`
+- Deleted `m25_wallet_regime` function and `_SMALL/_MEDIUM/_LARGE` constants from `methods/markov.py`
+- Removed S2, D6, M25 constants from `config.py` (`S2_LATE_STAGE_FRACTION`, `S2_HIGH_CONVICTION_ODDS`, 5× `M25_*`)
+- Updated `TOTAL_METHODS = 28` → `25` in `config.py`
+- Simplified `engine/relationships.py` (removed D6 block — now runs S3 only)
+- Removed S2, D6, M25 entries from `gui/components.py` `METHOD_INFO` dict
+- Removed S2 and M25 constants from `gui/pages/7_Settings.py` threshold display
+- Updated `methods/__init__.py` docstring (`M25-M28` → `M26-M28`) and `CATEGORIES` dict
+- Updated `data/scraper.py` warning message (removed stale S2 reference)
+- Removed `["S2", "T19"]` combo from `test_pipeline.py`
+
+**Verified:** `python -c "import methods; print(len(methods.METHODS))"` → 25, matching `TOTAL_METHODS`.
+
+**Files modified:** `methods/suspicious.py`, `methods/discrete.py`, `methods/markov.py`, `methods/__init__.py`, `config.py`, `engine/relationships.py`, `gui/components.py`, `gui/pages/7_Settings.py`, `data/scraper.py`, `test_pipeline.py`
+
+---
+
+#### B038 — `bot_prob` label implied calibrated probability (Fixed)
+
+**Risk:** `bot_prob = 0.5 + signal * 0.5` is a linear rescaling of the combo signal from [-1,+1] to [0,1]. It is **not** a calibrated probability. Displaying it as "Bot says 78% YES" implies the model is predicting an outcome probability, which it cannot do without Platt scaling / isotonic regression on 500+ resolved markets. The mislabelling could mislead future users (or the developer) into treating the score as a real probability when sizing bets.
+
+**Fix:**
+- Renamed `bot_prob` → `directional_score` in `engine/report.py` (all 3 occurrences)
+- Renamed `bot_prob` → `directional_score` in `dashboard.py` (both occurrences)
+- Renamed `bot_prob` → `implied_score` in `gui/components.py` (where the formula differs)
+- Changed display label "Bot says" → "Score" in `dashboard.py` and `engine/report.py`
+- Added inline comment in `engine/report.py` explaining the limitation and what proper calibration requires
+- Added inline comment in `gui/components.py` explaining the heuristic nature of that formula
+
+**Deferred:** Platt scaling calibration requires ~500 resolved markets with ground-truth outcomes. Current corpus (~80) is insufficient. Flagged in `config.py` fitness weights comment and inline in `report.py`.
+
+**Files modified:** `engine/report.py`, `dashboard.py`, `gui/components.py`
+
+---
+
+#### Documentation — Fitness weights and rationality formula (Documented)
+
+These are not bugs (the code is correct) but known limitations that were undocumented:
+
+**Fitness weights** (`config.py`): Added 15-line comment block above `FITNESS_W_*` constants explaining:
+- The rationale behind equal accuracy/edge weights (both necessary, neither sufficient)
+- Why FPR penalty is lower than reward weights (asymmetric but intentional)
+- Why complexity penalty is small (prefer parsimony without always picking singles)
+- What empirical validation requires (500+ markets, grid search over weight space)
+
+**Rationality formula** (`main.py`): Added 6-line comment above the formula explaining:
+- What each component measures and why those signals were chosen
+- That the max score of 0.8 is intentional (no wallet is "perfectly rational")
+- How to validate (correlate `rationality_score` against future win rate on held-out markets)
+
+---
+
+**Milestone update:** Method unit tests — **Done** (B035)
+
+**Next Steps update:**
+- ~~Add pytest unit tests for E, D, T methods~~ — Done (B035)
+- Rationality formula validation remains open (formula documented but weights unvalidated)
+- Fitness weight grid search deferred to 500+ resolved markets milestone
+- Probability calibration (Platt scaling) deferred to 500+ resolved markets milestone
+
+---
+
+#### Session 12 Addendum — Documentation Audit (2026-02-25)
+
+Post-session audit (automated grep) found 21+ stale "28 methods" / S2/D6/M25 references surviving the B037 dead code removal. All code was correct; only documentation needed updating.
+
+**Files updated (zero logic changes):**
+- `CLAUDE.md` — 28→25 (×4), removed S2/D6/M25 table rows, removed S2_*/M25_* from config constants list, M25-M28→M26-M28 in milestones
+- `methods/CLAUDE.md` — removed S2/D6/M25 algorithm rows, updated M section header to M26-M28, fixed stale rationality formula (`+0.2` still documented; corrected to match B036 fix)
+- `methods/__init__.py` — 28→25 in module docstring
+- `methods/markov.py` — M25-M28→M26-M28 in module docstring
+- `data/models.py` — fixed combo_id example comment (`S1,S2,E14,T17` → `E10,E15,T17`)
+- `README.md` — 28→25, removed PageRank/wallet-regime from category descriptions
+- `.claude/agents/backtest-analyst.md`, `debug-doctor.md`, `method-auditor.md`, `threshold-tuner.md` — 28→25, M25-M28→M26-M28
+- `.claude/agents/threshold-tuner.md` — replaced deleted `S2_HIGH_CONVICTION_ODDS` example with `T19_ZSCORE_THRESHOLD`
+- `docs/agents.md` — 28→25 in checklist, M25-M28→M26-M28 in example queries
+- `gui/db_queries.py` — 28→25 in docstring
+
+**Verification:** `grep -rn "28 methods|S2_LATE|S2_HIGH|M25_*|M25-M28|28 total|28 detection|all 28"` → zero matches (excluding PROCESS_LOG historical entries).

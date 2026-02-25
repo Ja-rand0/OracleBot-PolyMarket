@@ -82,54 +82,6 @@ def s1_win_rate_outlier(
 
 
 # ---------------------------------------------------------------------------
-# S2 — Bet Timing Relative to Resolution
-# ---------------------------------------------------------------------------
-@register("S2", "S", "Bet timing relative to resolution")
-def s2_bet_timing(
-    market: Market, bets: list[Bet], wallets: dict[str, Wallet]
-) -> MethodResult:
-    """Flag late-stage high-conviction bets as potential insider activity."""
-
-    if not bets:
-        return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets)
-
-    lifespan = (market.end_date - market.created_at).total_seconds()
-    if lifespan <= 0:
-        return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets)
-
-    cutoff = market.end_date - timedelta(seconds=lifespan * config.S2_LATE_STAGE_FRACTION)
-
-    late_bets = [
-        b for b in bets
-        if b.timestamp >= cutoff
-        and b.amount > 0
-        and (b.odds >= config.S2_HIGH_CONVICTION_ODDS or b.odds <= (1 - config.S2_HIGH_CONVICTION_ODDS))
-    ]
-
-    if not late_bets:
-        return MethodResult(signal=0.0, confidence=0.1, filtered_bets=bets,
-                            metadata={"late_bets": 0})
-
-    yes_vol = sum(b.amount for b in late_bets if b.side == "YES")
-    no_vol = sum(b.amount for b in late_bets if b.side == "NO")
-    total = yes_vol + no_vol
-    signal = (yes_vol - no_vol) / total if total > 0 else 0.0
-    confidence = min(1.0, len(late_bets) / 5)
-
-    return MethodResult(
-        signal=signal,
-        confidence=confidence,
-        filtered_bets=bets,
-        metadata={
-            "late_bets": len(late_bets),
-            "cutoff": str(cutoff),
-            "yes_vol": yes_vol,
-            "no_vol": no_vol,
-        },
-    )
-
-
-# ---------------------------------------------------------------------------
 # S3 — Wallet Coordination Clustering
 # ---------------------------------------------------------------------------
 @register("S3", "S", "Wallet coordination clustering")

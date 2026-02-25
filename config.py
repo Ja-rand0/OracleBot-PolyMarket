@@ -20,6 +20,22 @@ TRADES_PAGE_SIZE  = 500
 # ---------------------------------------------------------------------------
 # Engine
 # ---------------------------------------------------------------------------
+# Fitness weights: accuracy * W_ACCURACY + edge * W_EDGE - FPR * W_FALSE_POS
+#                  - (complexity / TOTAL_METHODS) * W_COMPLEXITY
+#
+# These weights are PROVISIONAL — set by engineering intuition, not grid search.
+# Rationale for current values:
+#   - Accuracy and edge share equal weight (0.35 each) because both matter:
+#     a combo that's right often but never beats the market is useless, and
+#     vice versa.
+#   - FPR penalised at 0.20: high-confidence wrong predictions are costly
+#     (real money), but not penalised as much as being correct is rewarded.
+#   - Complexity penalised at 0.10: Occam's razor — prefer simpler combos
+#     that generalise, but not so aggressively that single-method combos always win.
+#
+# To empirically validate, run a grid search over weight space with 500+ resolved
+# markets and compare out-of-sample accuracy of the resulting top combos.
+# Until then, treat these as reasonable priors, not ground truth.
 FITNESS_W_ACCURACY    = 0.35
 FITNESS_W_EDGE        = 0.35
 FITNESS_W_FALSE_POS   = 0.20
@@ -30,7 +46,7 @@ TIER1_TOP_PER_CATEGORY    = 5
 TIER2_TOP_OVERALL         = 10
 SCRAPE_INTERVAL_MINUTES   = 30
 ANALYZE_INTERVAL_HOURS    = 6
-TOTAL_METHODS             = 28
+TOTAL_METHODS             = 25
 BACKFILL_MAX_AGE_DAYS     = 365    # skip resolved markets older than this (Data API likely dry)
 HOLDOUT_FRACTION          = 0.20   # 20% of resolved markets held out for validation
 
@@ -47,9 +63,6 @@ REPORT_PRICE_MIN_TRADES    = 3
 # ---------------------------------------------------------------------------
 S1_MIN_RESOLVED_BETS   = 10
 S1_STDDEV_THRESHOLD    = 2.0
-
-S2_LATE_STAGE_FRACTION = 0.20
-S2_HIGH_CONVICTION_ODDS = 0.75
 
 S3_TIME_WINDOW_MINUTES = 10
 S3_MIN_CO_MARKETS      = 2      # min co-occurrences per graph edge
@@ -113,12 +126,6 @@ P24_HIGH_RATIO = 0.70
 # ---------------------------------------------------------------------------
 # Method thresholds — M (Markov Chain)
 # ---------------------------------------------------------------------------
-M25_MIN_WALLET_BETS        = 3
-M25_SMALL_MULTIPLIER       = 0.5
-M25_LARGE_MULTIPLIER       = 2.0
-M25_ESCALATION_THRESHOLD   = 0.4
-M25_CONFIDENCE_CAP         = 10
-
 M26_NUM_WINDOWS       = 5
 M26_LOW_THRESHOLD     = 0.35
 M26_HIGH_THRESHOLD    = 0.65

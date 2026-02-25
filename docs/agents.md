@@ -60,9 +60,9 @@
 
 2. **Test execution & interpretation** — Run `test_pipeline.py` and interpret results:
    - Verify all 4 steps complete without exceptions
-   - Check that new methods (M25-M28) execute during backtest step
+   - Check that methods (M26-M28) execute during backtest step
    - Compare combo fitness scores against previous runs (regression detection)
-   - Validate that method registration is correct: 28 methods, 6 categories
+   - Validate that method registration is correct: 25 methods, 6 categories
 
 3. **Report validation** — Read latest report from `reports/` and check:
    - Are picks being generated? (empty picks = signal pipeline broken)
@@ -91,7 +91,7 @@
 **Safety:** Read-only access to all files. Same `validate_readonly_query.py` hook applies for any database queries. Cannot modify source code — reports findings to overseer for action.
 
 **Input format:** Overseer provides context like:
-- "Validate the M25-M28 integration" (post-change validation)
+- "Validate the M26-M28 integration" (post-change validation)
 - "Check bot.log for errors in the last 24 hours" (routine health check)
 - "Compare today's report against last week's" (quality tracking)
 - "Run test_pipeline.py and report results" (full pipeline test)
@@ -105,7 +105,7 @@
 - **Recommendations:** Specific next steps for the overseer
 
 **Example queries:**
-- "We just added M25-M28. Validate everything still works."
+- "We just added M26-M28. Validate everything still works."
 - "Parse bot.log — any new errors since the last commit?"
 - "Read the latest daily report. Are picks reasonable?"
 - "Run test_pipeline and tell me if M methods show up in backtest results."
