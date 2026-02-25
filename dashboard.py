@@ -5,7 +5,7 @@ import gc
 import logging
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from rich import box
 from rich.console import Console
@@ -158,7 +158,7 @@ def collect_data(conn) -> dict:
             progress.advance(task)
 
     # --- Backfill: resolved markets already in DB with no/few bets ---
-    backfill_cutoff = datetime.utcnow() - timedelta(days=config.BACKFILL_MAX_AGE_DAYS)
+    backfill_cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=config.BACKFILL_MAX_AGE_DAYS)
     backfill_markets = db.get_resolved_markets_needing_backfill(
         conn, min_bets=MIN_BETS_FOR_BACKTEST, limit=MAX_BACKFILL_FETCHES,
         min_end_date=backfill_cutoff,
@@ -477,13 +477,13 @@ def run():
                 collect_data(conn)
 
                 # Analyze on first cycle, then every ANALYZE_INTERVAL_HOURS
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc).replace(tzinfo=None)
                 due = last_analyzed is None or (
                     now - last_analyzed >= timedelta(hours=config.ANALYZE_INTERVAL_HOURS)
                 )
                 if due:
                     _report, picks = run_analysis(conn)
-                    last_analyzed = datetime.utcnow()
+                    last_analyzed = datetime.now(timezone.utc).replace(tzinfo=None)
                     display_report(conn, picks)
                 else:
                     next_analyze = last_analyzed + timedelta(hours=config.ANALYZE_INTERVAL_HOURS)

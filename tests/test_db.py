@@ -2,7 +2,7 @@ import pytest
 import sqlite3
 import data.db as db
 from data.models import ComboResults
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 @pytest.fixture
@@ -20,7 +20,7 @@ def _make_cr(combo_id, fitness, accuracy=0.6, edge=0.05, fpr=0.1):
     cr = ComboResults(combo_id=combo_id, methods_used=[combo_id],
                       accuracy=accuracy, edge_vs_market=edge,
                       false_positive_rate=fpr, complexity=1,
-                      tested_at=datetime.utcnow())
+                      tested_at=datetime.now(timezone.utc).replace(tzinfo=None))
     cr.fitness_score = fitness
     return cr
 

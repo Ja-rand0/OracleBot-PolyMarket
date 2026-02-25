@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from statistics import median
 
 import config
@@ -133,7 +133,7 @@ def backtest_combo(
         edge_vs_market=edge,
         false_positive_rate=fpr,
         complexity=len(combo),
-        tested_at=datetime.utcnow(),
+        tested_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     cr.fitness_score = calculate_fitness(cr)
     return cr

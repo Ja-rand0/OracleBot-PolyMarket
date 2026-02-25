@@ -8,7 +8,7 @@ sys.path.insert(0, r'D:\Developer\Personal\Bots\PolyMarketTracker')
 
 import sqlite3
 from data.models import Market, Bet, Wallet
-from datetime import datetime
+from datetime import datetime, timezone
 import traceback
 
 DB_PATH = r'D:\Developer\Personal\Bots\PolyMarketTracker\data.db'
@@ -67,7 +67,7 @@ def load_data():
             id=mrow["id"],
             title=mrow["title"],
             description=mrow["description"] or "",
-            end_date=datetime.fromisoformat(mrow["end_date"]) if mrow["end_date"] else datetime.utcnow(),
+            end_date=datetime.fromisoformat(mrow["end_date"]) if mrow["end_date"] else datetime.now(timezone.utc).replace(tzinfo=None),
             resolved=bool(mrow["resolved"]),
             outcome=mrow["outcome"],
             created_at=datetime.fromisoformat(mrow["created_at"]),
@@ -97,7 +97,7 @@ def load_data():
         wallets = {
             r["address"]: Wallet(
                 address=r["address"],
-                first_seen=datetime.fromisoformat(r["first_seen"]) if r["first_seen"] else datetime.utcnow(),
+                first_seen=datetime.fromisoformat(r["first_seen"]) if r["first_seen"] else datetime.now(timezone.utc).replace(tzinfo=None),
                 total_bets=r["total_bets"],
                 total_volume=r["total_volume"],
                 win_rate=r["win_rate"],

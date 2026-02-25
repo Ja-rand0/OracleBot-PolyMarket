@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, r'D:\Developer\Personal\Bots\PolyMarketTracker')
 import sqlite3
 from data.models import Market, Bet, Wallet
-from datetime import datetime
+from datetime import datetime, timezone
 
 DB_PATH = r'D:\Developer\Personal\Bots\PolyMarketTracker\data.db'
 
@@ -28,7 +28,7 @@ for row in top:
         continue
     market = Market(
         id=mrow['id'], title=mrow['title'] or '', description=mrow['description'] or '',
-        end_date=datetime.fromisoformat(mrow['end_date']) if mrow['end_date'] else datetime.utcnow(),
+        end_date=datetime.fromisoformat(mrow['end_date']) if mrow['end_date'] else datetime.now(timezone.utc).replace(tzinfo=None),
         resolved=bool(mrow['resolved']), outcome=mrow['outcome'],
         created_at=datetime.fromisoformat(mrow['created_at'])
     )
@@ -41,7 +41,7 @@ for row in top:
     wrows = conn.execute(f"SELECT * FROM wallets WHERE address IN ({ph})", addrs).fetchall()
     wallets = {r['address']: Wallet(
         address=r['address'],
-        first_seen=datetime.fromisoformat(r['first_seen']) if r['first_seen'] else datetime.utcnow(),
+        first_seen=datetime.fromisoformat(r['first_seen']) if r['first_seen'] else datetime.now(timezone.utc).replace(tzinfo=None),
         total_bets=r['total_bets'], total_volume=r['total_volume'],
         win_rate=r['win_rate'], rationality_score=r['rationality_score'],
         flagged_suspicious=bool(r['flagged_suspicious']), flagged_sandpit=bool(r['flagged_sandpit'])

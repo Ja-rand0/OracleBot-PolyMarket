@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import config
@@ -458,7 +458,7 @@ def insert_holdout_result(
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            datetime.utcnow().isoformat(), combo_id, train_n, holdout_n,
+            datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), combo_id, train_n, holdout_n,
             train_cr.fitness_score, holdout_cr.fitness_score,
             train_cr.accuracy, holdout_cr.accuracy,
             train_cr.edge_vs_market, holdout_cr.edge_vs_market,

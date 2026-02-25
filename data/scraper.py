@@ -149,7 +149,7 @@ def _parse_clob_market(raw: dict) -> Market:
                 outcome = "YES" if i == 0 else "NO"
             break
 
-    end_date = _parse_dt(end_str) or datetime.utcnow()
+    end_date = _parse_dt(end_str) or datetime.now(timezone.utc).replace(tzinfo=None)
     created_at = _parse_dt(created_str)
     if created_at is None or created_at > end_date:
         # Fallback: assume market ran for 30 days before end_date
@@ -207,7 +207,7 @@ def _parse_trade(raw: dict, condition_id: str) -> Bet:
     if isinstance(ts, (int, float)):
         dt = datetime.utcfromtimestamp(ts)
     else:
-        dt = datetime.utcnow()
+        dt = datetime.now(timezone.utc).replace(tzinfo=None)
 
     side_raw = raw.get("side", "BUY")
     outcome = raw.get("outcome", "")

@@ -5,7 +5,7 @@ import argparse
 import gc
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import schedule
 
@@ -75,7 +75,7 @@ def update_wallet_stats(conn) -> dict[str, Wallet]:
         try:
             fs = datetime.strptime(first_seen_str, "%Y-%m-%dT%H:%M:%SZ")
         except (ValueError, TypeError):
-            fs = datetime.utcnow()
+            fs = datetime.now(timezone.utc).replace(tzinfo=None)
 
         w = Wallet(
             address=addr,
@@ -173,7 +173,7 @@ def collect_data(conn) -> None:
             log.exception("Failed to fetch trades for resolved market %s", m.id[:16])
 
     # Backfill: resolved markets already in DB with no/few bets (not in current fetch window)
-    backfill_cutoff = datetime.utcnow() - timedelta(days=config.BACKFILL_MAX_AGE_DAYS)
+    backfill_cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=config.BACKFILL_MAX_AGE_DAYS)
     backfill_markets = db.get_resolved_markets_needing_backfill(
         conn, min_bets=MIN_BETS_FOR_BACKTEST, limit=MAX_BACKFILL_FETCHES,
         min_end_date=backfill_cutoff,

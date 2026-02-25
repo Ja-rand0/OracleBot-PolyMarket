@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 
@@ -69,8 +69,8 @@ def generate_report(
     Returns (report_text, scored_markets) where scored_markets is a list of
     (Market, emotion_ratio, signal, confidence, n_bets) sorted by conviction."""
 
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d_%H%M")
+    today = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d")
+    timestamp = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d_%H%M")
 
     # Get best combo
     top_combos = db.get_top_combos(conn, limit=5)
