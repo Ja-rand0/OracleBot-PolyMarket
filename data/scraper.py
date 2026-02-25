@@ -381,6 +381,62 @@ def fetch_price_history(condition_id: str, interval: str = "1d", fidelity: int =
 # Polygon on-chain (optional, requires API key)
 # ---------------------------------------------------------------------------
 
+def fetch_leaderboard(
+    limit: int = 100,
+    time_period: str = "ALL",
+    order_by: str = "PNL",
+) -> list[dict]:
+    """Fetch top traders from the Data API leaderboard.
+
+    Returns list of dicts with keys: address, volume, pnl.
+    Used to seed the wallet tracking table with known sharp traders.
+    Cache: 5 min (leaderboard changes slowly within a cycle).
+    """
+    key = f"leaderboard:{limit}:{time_period}:{order_by}"
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
+
+    url = "https://data-api.polymarket.com/v1/leaderboard"
+    results: list[dict] = []
+    offset = 0
+    batch = min(limit, 50)  # API max per request = 50
+
+    while len(results) < limit:
+        params: dict[str, Any] = {
+            "category": "OVERALL",
+            "timePeriod": time_period,
+            "orderBy": order_by,
+            "limit": batch,
+            "offset": offset,
+        }
+        try:
+            data = _get(url, params=params)
+        except requests.RequestException:
+            log.warning("Leaderboard fetch failed at offset %d", offset)
+            break
+
+        if not data:
+            break
+
+        for entry in data:
+            addr = entry.get("proxyWallet", "")
+            if addr:
+                results.append({
+                    "address": addr,
+                    "volume": float(entry.get("vol") or 0),
+                    "pnl": float(entry.get("pnl") or 0),
+                })
+
+        if len(data) < batch:
+            break
+        offset += batch
+
+    log.info("Leaderboard: fetched %d wallets (period=%s, order=%s)", len(results), time_period, order_by)
+    _cache_set(key, results, _TTL_MARKETS)
+    return results
+
+
 def fetch_wallet_transactions(wallet: str, page: int = 1) -> list[dict]:
     """Fetch transaction history for a wallet from Polygonscan."""
     if not config.POLYGONSCAN_API_KEY:

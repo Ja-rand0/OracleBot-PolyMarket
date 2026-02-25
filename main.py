@@ -45,7 +45,8 @@ def update_wallet_stats(conn) -> dict[str, Wallet]:
             SUM(b.amount) AS total_volume,
             SUM(CASE WHEN m.outcome IS NOT NULL AND b.side = m.outcome THEN 1 ELSE 0 END) AS wins,
             SUM(CASE WHEN m.outcome IS NOT NULL THEN 1 ELSE 0 END) AS resolved_bets,
-            SUM(CASE WHEN b.amount >= 50 AND CAST(b.amount AS INTEGER) % 50 = 0 THEN 1 ELSE 0 END) AS round_bets
+            SUM(CASE WHEN b.amount >= 50 AND CAST(b.amount AS INTEGER) % 50 = 0 THEN 1 ELSE 0 END) AS round_bets,
+            SUM(CASE WHEN b.side = 'YES' THEN 1 ELSE 0 END) AS yes_bets
         FROM bets b
         LEFT JOIN markets m ON b.market_id = m.id AND m.resolved = 1
         GROUP BY b.wallet
@@ -61,9 +62,11 @@ def update_wallet_stats(conn) -> dict[str, Wallet]:
         wins = row[4] or 0
         resolved_bets = row[5] or 0
         round_bets = row[6] or 0
+        yes_bets   = row[7] or 0
 
         win_rate = wins / resolved_bets if resolved_bets > 0 else 0.0
         round_ratio = round_bets / total_bets if total_bets > 0 else 0.0
+        yes_bet_ratio = yes_bets / total_bets if total_bets > 0 else 0.5
         # Rationality score: provisional heuristic combining two behavioural signals.
         # Weights (0.5 / 0.3) are engineering estimates, not empirically validated.
         #   win_rate * 0.5      — track record; winning bets suggest informed decisions
@@ -84,6 +87,7 @@ def update_wallet_stats(conn) -> dict[str, Wallet]:
             total_volume=total_volume,
             win_rate=win_rate,
             rationality_score=rationality,
+            yes_bet_ratio=yes_bet_ratio,
         )
         wallets[addr] = w
         bulk_rows.append((
@@ -91,20 +95,23 @@ def update_wallet_stats(conn) -> dict[str, Wallet]:
             w.total_bets, w.total_volume,
             w.win_rate, w.rationality_score,
             w.flagged_suspicious, w.flagged_sandpit,
+            w.yes_bet_ratio,
         ))
 
     conn.executemany(
         """
         INSERT INTO wallets (address, first_seen, total_bets, total_volume,
-                             win_rate, rationality_score, flagged_suspicious, flagged_sandpit)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                             win_rate, rationality_score, flagged_suspicious, flagged_sandpit,
+                             yes_bet_ratio)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(address) DO UPDATE SET
             total_bets=excluded.total_bets,
             total_volume=excluded.total_volume,
             win_rate=excluded.win_rate,
             rationality_score=excluded.rationality_score,
             flagged_suspicious=excluded.flagged_suspicious,
-            flagged_sandpit=excluded.flagged_sandpit
+            flagged_sandpit=excluded.flagged_sandpit,
+            yes_bet_ratio=excluded.yes_bet_ratio
         """,
         bulk_rows,
     )

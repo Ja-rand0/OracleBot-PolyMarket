@@ -31,16 +31,20 @@ def e10_loyalty_bias(
 
     emotional_wallets: set[str] = set()
 
-    for addr, wbets in wallet_bets.items():
-        if len(wbets) < config.E10_MIN_MARKETS:
+    # Cross-market check: use wallet's yes_bet_ratio across ALL markets (not just this one).
+    # Wallets missing from the dict or with too few total bets are skipped.
+    for addr in wallet_bets:
+        w = wallets.get(addr)
+        if w is None or w.total_bets < config.E10_MIN_MARKETS:
             continue
-
-        yes_count = sum(1 for b in wbets if b.side == "YES")
-        total = len(wbets)
-        ratio = max(yes_count / total, 1 - yes_count / total)
-
-        if ratio >= config.E10_CONSISTENCY_THRESHOLD:
+        cross_ratio = max(w.yes_bet_ratio, 1.0 - w.yes_bet_ratio)
+        if cross_ratio >= config.E10_CONSISTENCY_THRESHOLD:
             emotional_wallets.add(addr)
+
+    if not emotional_wallets:
+        return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets,
+                            metadata={"emotional_wallets": 0, "bets_filtered": 0,
+                                      "loyal_volume_fraction": 0.0})
 
     # Filter
     clean_bets = [b for b in bets if b.wallet not in emotional_wallets]
@@ -53,7 +57,7 @@ def e10_loyalty_bias(
 
     loyal_volume = sum(b.amount for b in emotional_bets)
     total_volume = sum(b.amount for b in bets)
-    confidence = max(0.1, min(1.0, (loyal_volume / total_volume) * 2)) if total_volume > 0 else 0.1
+    confidence = min(1.0, (loyal_volume / total_volume) * 2) if total_volume > 0 else 0.0
 
     return MethodResult(
         signal=signal,
@@ -101,15 +105,17 @@ def e11_recency_bias(
     # If early bets are heavily skewed vs later bets → recency bias in early bets
     skew = abs(early_ratio - late_ratio)
 
-    if skew > 0.3:
-        # Early bets are biased — filter wallets that only bet early
-        early_wallets = {b.wallet for b in early_bets}
-        late_wallets = {b.wallet for b in late_bets}
-        only_early = early_wallets - late_wallets
+    if skew <= 0.3:
+        return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets,
+                            metadata={"skew": skew, "early_ratio": early_ratio,
+                                      "late_ratio": late_ratio, "bets_filtered": 0})
 
-        clean_bets = [b for b in bets if b.wallet not in only_early]
-    else:
-        clean_bets = bets
+    # Early bets are biased — filter wallets that only bet early
+    early_wallets = {b.wallet for b in early_bets}
+    late_wallets = {b.wallet for b in late_bets}
+    only_early = early_wallets - late_wallets
+
+    clean_bets = [b for b in bets if b.wallet not in only_early]
 
     yes_vol = sum(b.amount for b in clean_bets if b.side == "YES")
     no_vol = sum(b.amount for b in clean_bets if b.side == "NO")
@@ -118,7 +124,7 @@ def e11_recency_bias(
 
     return MethodResult(
         signal=signal,
-        confidence=max(0.1, min(1.0, skew * 2)),
+        confidence=min(1.0, skew * 2),
         filtered_bets=clean_bets,
         metadata={
             "early_ratio": early_ratio,
@@ -163,6 +169,10 @@ def e12_revenge_betting(
                 revenge_wallets.add(addr)
                 break
 
+    if not revenge_wallets:
+        return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets,
+                            metadata={"revenge_wallets": 0, "bets_filtered": 0})
+
     clean_bets = [b for b in bets if b.wallet not in revenge_wallets]
 
     yes_vol = sum(b.amount for b in clean_bets if b.side == "YES")
@@ -172,7 +182,7 @@ def e12_revenge_betting(
 
     return MethodResult(
         signal=signal,
-        confidence=min(1.0, len(revenge_wallets) / 5) if revenge_wallets else 0.1,
+        confidence=min(1.0, len(revenge_wallets) / 5),
         filtered_bets=clean_bets,
         metadata={
             "revenge_wallets": len(revenge_wallets),
@@ -220,6 +230,11 @@ def e13_hype_detection(
         if vol >= median_vol * config.E13_VOLUME_SPIKE_MULTIPLIER:
             spike_bets.extend(hourly_bets[hour])
 
+    if not spike_bets:
+        return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets,
+                            metadata={"spike_bets": 0, "median_hourly_volume": median_vol,
+                                      "spike_hours": 0})
+
     spike_ids = {id(b) for b in spike_bets}
     clean_bets = [b for b in bets if id(b) not in spike_ids]
 
@@ -230,7 +245,7 @@ def e13_hype_detection(
 
     return MethodResult(
         signal=signal,
-        confidence=min(1.0, len(spike_bets) / len(bets)) if spike_bets else 0.1,
+        confidence=min(1.0, len(spike_bets) / len(bets)),
         filtered_bets=clean_bets,
         metadata={
             "spike_bets": len(spike_bets),
@@ -273,6 +288,10 @@ def e14_odds_sensitivity(
         if abs(corr) < config.E14_LOW_CORRELATION_THRESHOLD:
             emotional_wallets.add(addr)
 
+    if not emotional_wallets:
+        return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets,
+                            metadata={"emotional_wallets": 0, "bets_filtered": 0})
+
     clean_bets = [b for b in bets if b.wallet not in emotional_wallets]
 
     yes_vol = sum(b.amount for b in clean_bets if b.side == "YES")
@@ -282,7 +301,7 @@ def e14_odds_sensitivity(
 
     return MethodResult(
         signal=signal,
-        confidence=min(1.0, len(emotional_wallets) / 10) if emotional_wallets else 0.1,
+        confidence=min(1.0, len(emotional_wallets) / 10),
         filtered_bets=clean_bets,
         metadata={
             "emotional_wallets": len(emotional_wallets),
@@ -327,6 +346,10 @@ def e15_round_number(
         if ratio > 0.7:
             emotional_wallets.add(addr)
 
+    if not emotional_wallets:
+        return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets,
+                            metadata={"emotional_wallets": 0, "bets_filtered": 0})
+
     clean_bets = [b for b in bets if b.wallet not in emotional_wallets]
 
     yes_vol = sum(b.amount for b in clean_bets if b.side == "YES")
@@ -336,7 +359,7 @@ def e15_round_number(
 
     return MethodResult(
         signal=signal,
-        confidence=min(1.0, len(emotional_wallets) / 10) if emotional_wallets else 0.1,
+        confidence=min(1.0, len(emotional_wallets) / 10),
         filtered_bets=clean_bets,
         metadata={
             "emotional_wallets": len(emotional_wallets),
@@ -363,21 +386,21 @@ def e16_bipartite_pruning(
 
     emotional_wallets: set[str] = set()
 
-    for addr, wbets in wallet_bets.items():
-        if len(wbets) < 3:
+    # Cross-market KL divergence: use wallet's yes_bet_ratio across ALL markets.
+    # Within-market skew reflects informed conviction, not bias; cross-market skew is genuine.
+    for addr in wallet_bets:
+        w = wallets.get(addr)
+        if w is None or w.total_bets < 3:
             continue
-
-        yes_count = sum(1 for b in wbets if b.side == "YES")
-        no_count = len(wbets) - yes_count
-        total = len(wbets)
-
-        # KL divergence from uniform (0.5, 0.5)
-        p_yes = max(yes_count / total, 1e-10)
-        p_no = max(no_count / total, 1e-10)
+        p_yes = max(w.yes_bet_ratio, 1e-10)
+        p_no  = max(1.0 - w.yes_bet_ratio, 1e-10)
         kl = p_yes * math.log(p_yes / 0.5) + p_no * math.log(p_no / 0.5)
-
         if kl > config.E16_KL_THRESHOLD:
             emotional_wallets.add(addr)
+
+    if not emotional_wallets:
+        return MethodResult(signal=0.0, confidence=0.0, filtered_bets=bets,
+                            metadata={"emotional_wallets": 0, "bets_filtered": 0})
 
     clean_bets = [b for b in bets if b.wallet not in emotional_wallets]
 
@@ -388,7 +411,7 @@ def e16_bipartite_pruning(
 
     return MethodResult(
         signal=signal,
-        confidence=min(1.0, len(emotional_wallets) / 10) if emotional_wallets else 0.1,
+        confidence=min(1.0, len(emotional_wallets) / 10),
         filtered_bets=clean_bets,
         metadata={
             "emotional_wallets": len(emotional_wallets),

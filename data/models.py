@@ -38,6 +38,7 @@ class Wallet:
     rationality_score: float = 0.0
     flagged_suspicious: bool = False
     flagged_sandpit: bool = False
+    yes_bet_ratio: float = 0.5   # fraction of YES bets across all markets (cross-market loyalty signal)
 
 
 @dataclass

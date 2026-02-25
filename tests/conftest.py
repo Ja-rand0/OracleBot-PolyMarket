@@ -28,7 +28,7 @@ def make_bet(market_id="test-market-1", wallet="W1", side="YES",
     )
 
 
-def make_wallet(address="W1", total_bets=10, win_rate=0.5, rationality=0.5):
+def make_wallet(address="W1", total_bets=10, win_rate=0.5, rationality=0.5, yes_bet_ratio=0.5):
     return Wallet(
         address=address,
         first_seen=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=30),
@@ -36,4 +36,5 @@ def make_wallet(address="W1", total_bets=10, win_rate=0.5, rationality=0.5):
         total_volume=1000.0,
         win_rate=win_rate,
         rationality_score=rationality,
+        yes_bet_ratio=yes_bet_ratio,
     )

@@ -597,3 +597,30 @@ Post-session audit (automated grep) found 21+ stale "28 methods" / S2/D6/M25 ref
 - `gui/db_queries.py` — 28→25 in docstring
 
 **Verification:** `grep -rn "28 methods|S2_LATE|S2_HIGH|M25_*|M25-M28|28 total|28 detection|all 28"` → zero matches (excluding PROCESS_LOG historical entries).
+
+---
+
+### Session 13 — E-Category Fix + Infrastructure (2026-02-25)
+
+**Work completed:**
+
+- **B039 — Leaderboard wallet seeding**: `fetch_leaderboard()` added to `scraper.py` (cached, paginated). `seed_wallets_batch()` added to `db.py` (INSERT OR IGNORE). Wired into `collect_data()` in `main.py` — seeds top 200 PNL wallets each cycle.
+- **B040 — API caching layer**: In-memory TTL cache added to `scraper.py` (`_cache` dict, `_cache_get`, `_cache_set`, `clear_scraper_cache`). TTLs: markets 300s, trades 300s, prices 60s, historical 3600s. All fetch functions wrapped. Fixed `datetime.utcfromtimestamp()` deprecation.
+- **B041 — python-dotenv setup**: `load_dotenv()` added to `config.py`. `.env.example` committed. P011/P012 closed.
+- **B042 — E-category confidence floor**: All E methods (E10–E16) returned `confidence=0.1` when finding nothing to filter. Changed to `confidence=0.0, signal=0.0` (correct zero-information behavior). Methods that don't fire now contribute zero weight to the combo aggregate.
+- **B043 — E10/E16 cross-market detection**: Empirical audit showed E10 fires on 82% of markets, removes 24% median volume, but 65% of removed bets were on the winning side — it was filtering signal, not noise. Root cause: E10 and E16 were designed for cross-market wallet loyalty but implemented with per-market data only. Fixed by adding `yes_bet_ratio` (fraction of YES bets across all markets) to the `Wallet` dataclass, `wallets` DB schema, and `update_wallet_stats()` SQL query. E10 now uses cross-market `wallet.yes_bet_ratio` instead of within-market ratio. E16 KL divergence now computed from cross-market `yes_bet_ratio` instead of per-market side counts.
+- **Test suite extended**: 85 tests, all passing. E10/E16 tests updated to pass wallet dicts with `yes_bet_ratio`.
+
+**Pre-fix accuracy data (base combo = D5+T17+M26+P20, fitness=0.3086):**
+
+| Combo | Fitness before | After (pending next session) |
+|-------|---------------|------------------------------|
+| base+E10 | 0.2872 (-0.022) | TBD |
+| base+E16 | 0.2982 (-0.010) | TBD |
+| base+E12 | 0.3019 (-0.007) | TBD |
+
+**Pending for Session 14:**
+- Run `tmp_verify`-style script to confirm E10/E16 fitness improvement after `yes_bet_ratio` populated via `update_wallet_stats()`
+- Note: `yes_bet_ratio` is currently `0.5` (default) for all wallets until the next `update_wallet_stats()` run fills it. The real improvement will be visible after a full data collection cycle.
+- Run combinator to see if E methods start appearing in top combos
+- Close P006 (`report.py` placeholder Wallet)

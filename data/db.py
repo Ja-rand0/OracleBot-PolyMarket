@@ -70,7 +70,8 @@ def init_db(conn: sqlite3.Connection) -> None:
             win_rate REAL DEFAULT 0,
             rationality_score REAL DEFAULT 0,
             flagged_suspicious BOOLEAN DEFAULT 0,
-            flagged_sandpit BOOLEAN DEFAULT 0
+            flagged_sandpit BOOLEAN DEFAULT 0,
+            yes_bet_ratio REAL DEFAULT 0.5
         );
 
         CREATE TABLE IF NOT EXISTS wallet_relationships (
@@ -154,6 +155,14 @@ def init_db(conn: sqlite3.Connection) -> None:
             "CREATE UNIQUE INDEX idx_mr_combo_unique ON method_results(combo_id)"
         )
         conn.commit()
+
+    # Migration: add yes_bet_ratio column to existing databases
+    try:
+        conn.execute("ALTER TABLE wallets ADD COLUMN yes_bet_ratio REAL DEFAULT 0.5")
+        conn.commit()
+        log.info("Migration: added yes_bet_ratio column to wallets")
+    except sqlite3.OperationalError:
+        pass  # column already exists
 
     log.info("Database schema initialised")
 
@@ -328,18 +337,21 @@ def upsert_wallet(conn: sqlite3.Connection, w: Wallet) -> None:
     conn.execute(
         """
         INSERT INTO wallets (address, first_seen, total_bets, total_volume,
-                             win_rate, rationality_score, flagged_suspicious, flagged_sandpit)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                             win_rate, rationality_score, flagged_suspicious, flagged_sandpit,
+                             yes_bet_ratio)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(address) DO UPDATE SET
             total_bets=excluded.total_bets,
             total_volume=excluded.total_volume,
             win_rate=excluded.win_rate,
             rationality_score=excluded.rationality_score,
             flagged_suspicious=excluded.flagged_suspicious,
-            flagged_sandpit=excluded.flagged_sandpit
+            flagged_sandpit=excluded.flagged_sandpit,
+            yes_bet_ratio=excluded.yes_bet_ratio
         """,
         (w.address, _ts(w.first_seen), w.total_bets, w.total_volume,
-         w.win_rate, w.rationality_score, w.flagged_suspicious, w.flagged_sandpit),
+         w.win_rate, w.rationality_score, w.flagged_suspicious, w.flagged_sandpit,
+         w.yes_bet_ratio),
     )
     conn.commit()
 
@@ -352,7 +364,7 @@ def seed_wallets_batch(conn: sqlite3.Connection, wallet_entries: list[dict]) -> 
     """
     now = _ts(datetime.now(timezone.utc).replace(tzinfo=None))
     rows = [
-        (e["address"], now, 0, float(e.get("volume") or 0), 0.0, 0.5, 0, 0)
+        (e["address"], now, 0, float(e.get("volume") or 0), 0.0, 0.5, 0, 0, 0.5)
         for e in wallet_entries
         if e.get("address")
     ]
@@ -362,8 +374,9 @@ def seed_wallets_batch(conn: sqlite3.Connection, wallet_entries: list[dict]) -> 
         """
         INSERT OR IGNORE INTO wallets
             (address, first_seen, total_bets, total_volume,
-             win_rate, rationality_score, flagged_suspicious, flagged_sandpit)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             win_rate, rationality_score, flagged_suspicious, flagged_sandpit,
+             yes_bet_ratio)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         rows,
     )
@@ -381,6 +394,7 @@ def get_wallet(conn: sqlite3.Connection, address: str) -> Optional[Wallet]:
         win_rate=row["win_rate"], rationality_score=row["rationality_score"],
         flagged_suspicious=bool(row["flagged_suspicious"]),
         flagged_sandpit=bool(row["flagged_sandpit"]),
+        yes_bet_ratio=float(row["yes_bet_ratio"] or 0.5),
     )
 
 
@@ -393,6 +407,7 @@ def get_all_wallets(conn: sqlite3.Connection) -> dict[str, Wallet]:
             win_rate=r["win_rate"], rationality_score=r["rationality_score"],
             flagged_suspicious=bool(r["flagged_suspicious"]),
             flagged_sandpit=bool(r["flagged_sandpit"]),
+            yes_bet_ratio=float(r["yes_bet_ratio"] or 0.5),
         )
         for r in rows
     }

@@ -10,28 +10,30 @@ from tests.conftest import make_bet, make_wallet
 # --- E10 ---
 
 def test_e10_loyal_yes_wallet_filtered(base_market):
-    # W1: 9 YES / 1 NO = 90% YES >= E10_CONSISTENCY_THRESHOLD(0.85) → flagged.
-    # W2: 2 bets (< E10_MIN_MARKETS=3) → not checked → passes through at 50/50.
+    # W1: yes_bet_ratio=0.9 across all markets (>= E10_CONSISTENCY_THRESHOLD=0.85) → flagged.
+    # W2: yes_bet_ratio=0.5 (balanced) and only 2 total bets → not checked.
     bets = [make_bet(wallet="W1", side="YES") for _ in range(9)]
     bets += [make_bet(wallet="W1", side="NO")]
     bets += [make_bet(wallet="W2", side="YES", amount=200)]
     bets += [make_bet(wallet="W2", side="NO", amount=200)]
-    result = e10_loyalty_bias(base_market, bets, {})
+    wallets = {"W1": make_wallet(address="W1", yes_bet_ratio=0.9, total_bets=10),
+               "W2": make_wallet(address="W2", yes_bet_ratio=0.5, total_bets=2)}
+    result = e10_loyalty_bias(base_market, bets, wallets)
     assert -0.15 <= result.signal <= 0.15   # W2 is 50/50 → near 0
     assert result.confidence > 0.0
 
 def test_e10_no_loyalty_returns_all_bets(base_market):
-    # Each wallet has 2 bets < E10_MIN_MARKETS(3) → none flagged
+    # All wallets have yes_bet_ratio=0.5 (balanced cross-market) → none flagged.
     bets = [make_bet(wallet="W1", side="YES"), make_bet(wallet="W1", side="NO"),
             make_bet(wallet="W2", side="YES"), make_bet(wallet="W2", side="NO")]
-    result = e10_loyalty_bias(base_market, bets, {})
+    wallets = {f"W{i}": make_wallet(address=f"W{i}", yes_bet_ratio=0.5) for i in range(1, 3)}
+    result = e10_loyalty_bias(base_market, bets, wallets)
     assert len(result.filtered_bets) == len(bets)
 
 def test_e10_empty_bets(base_market):
     result = e10_loyalty_bias(base_market, [], {})
     assert result.signal == 0.0
-    # Code returns 0.1 (not 0.0) for empty bets — the else branch of confidence formula
-    assert result.confidence == pytest.approx(0.1)
+    assert result.confidence == 0.0
 
 
 # --- E15 ---
@@ -63,18 +65,19 @@ def test_e15_empty_bets(base_market):
 # --- E16 ---
 
 def test_e16_skewed_wallet_flagged(base_market):
-    # W1: 10 YES / 0 NO → KL(p||uniform) ≈ 0.693 >> E16_KL_THRESHOLD(0.5) → flagged.
-    # 9 YES/1 NO only gives KL ≈ 0.368 which is below threshold.
-    # W2: 1 bet only (<3) → not checked → passes through. Clean bets are all NO.
+    # W1: yes_bet_ratio=0.99 cross-market → KL ≈ 0.693 >> E16_KL_THRESHOLD(0.5) → flagged.
+    # W2: no wallet entry (<3 total_bets default) → not checked → passes through (all NO).
     bets = [make_bet(wallet="W1", side="YES") for _ in range(10)]
     bets += [make_bet(wallet="W2", side="NO", amount=200)]
-    result = e16_bipartite_pruning(base_market, bets, {})
+    wallets = {"W1": make_wallet(address="W1", yes_bet_ratio=0.99, total_bets=20)}
+    result = e16_bipartite_pruning(base_market, bets, wallets)
     assert result.signal < 0.0
 
 def test_e16_balanced_wallet_not_flagged(base_market):
     bets = [make_bet(wallet="W1", side="YES") for _ in range(5)]
     bets += [make_bet(wallet="W1", side="NO") for _ in range(5)]
-    result = e16_bipartite_pruning(base_market, bets, {})
+    wallets = {"W1": make_wallet(address="W1", yes_bet_ratio=0.5, total_bets=20)}
+    result = e16_bipartite_pruning(base_market, bets, wallets)
     assert len(result.filtered_bets) == 10   # W1 not flagged → all returned
 
 def test_e16_empty_bets(base_market):
