@@ -15,6 +15,7 @@ def test_s1_sharp_wallet_signals_yes(base_market):
     result = s1_win_rate_outlier(base_market, bets, wallets)
     assert result.signal > 0.0
 
+
 def test_s1_insufficient_qualified_wallets(base_market):
     # Only 2 wallets with total_bets >= S1_MIN_RESOLVED_BETS=10 → < 3 qualified → signal=0.
     bets = [make_bet(wallet="W1"), make_bet(wallet="W2")]
@@ -23,6 +24,7 @@ def test_s1_insufficient_qualified_wallets(base_market):
     result = s1_win_rate_outlier(base_market, bets, wallets)
     assert result.signal == 0.0
     assert result.confidence == 0.0
+
 
 def test_s1_zero_stddev_returns_empty(base_market):
     # All 5 wallets have identical win_rate → std=0 → early return.
@@ -47,6 +49,7 @@ def test_s4_flagged_wallet_removed(base_market):
     assert all(b.wallet != "BAD" for b in result.filtered_bets)
     assert result.confidence == pytest.approx(0.5)
 
+
 def test_s4_volume_based_sandpit_removed(base_market):
     # S4_SANDPIT_MIN_BETS=10, S4_SANDPIT_MAX_WIN_RATE=0.25, S4_SANDPIT_MIN_VOLUME=5000.
     bets = [make_bet(wallet="SAND", side="YES", amount=100)]
@@ -55,12 +58,14 @@ def test_s4_volume_based_sandpit_removed(base_market):
     result = s4_sandpit_filter(base_market, bets, {"SAND": w})
     assert len(result.filtered_bets) == 0
 
+
 def test_s4_new_wallet_large_bet_removed(base_market):
     # S4_NEW_WALLET_MAX_BETS=3, S4_NEW_WALLET_LARGE_BET=2000.
     bets = [make_bet(wallet="NEW", side="YES", amount=3000)]
     w = make_wallet(address="NEW", total_bets=2, win_rate=0.5)
     result = s4_sandpit_filter(base_market, bets, {"NEW": w})
     assert len(result.filtered_bets) == 0
+
 
 def test_s4_clean_wallets_unchanged(base_market):
     # No sandpit criteria met → all bets returned, low confidence.

@@ -18,10 +18,10 @@ log = logging.getLogger(__name__)
 
 _cache: dict[str, tuple[Any, float]] = {}
 
-_TTL_MARKETS  = 300    # 5 min  — active market lists
-_TTL_PRICES   = 60     # 1 min  — orderbook / price history
-_TTL_TRADES   = 300    # 5 min  — trade history per market
-_TTL_HISTORY  = 3600   # 1 hour — resolved markets, on-chain data
+_TTL_MARKETS = 300    # 5 min  — active market lists
+_TTL_PRICES = 60     # 1 min  — orderbook / price history
+_TTL_TRADES = 300    # 5 min  — trade history per market
+_TTL_HISTORY = 3600   # 1 hour — resolved markets, on-chain data
 
 
 def _cache_get(key: str) -> Any:
@@ -192,7 +192,7 @@ def _parse_clob_market(raw: dict) -> Market:
         # Fallback: assume market ran for 30 days before end_date
         created_at = end_date - timedelta(days=30)
         log.warning("CLOB market %s missing created_at — using 30-day fallback (lifespan estimate unreliable)",
-                     raw.get("condition_id", "?")[:16])
+                    raw.get("condition_id", "?")[:16])
 
     return Market(
         id=raw.get("condition_id", ""),

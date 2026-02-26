@@ -1,7 +1,8 @@
 """Investigate T17 signal direction on the 25 backtest markets. Read-only."""
-import sqlite3, json, sys, math
+import sqlite3
+import sys
+import math
 from datetime import datetime, timedelta
-from statistics import median
 
 sys.path.insert(0, 'D:/Developer/Personal/Bots/PolyMarketTracker')
 from config import (BACKTEST_CUTOFF_FRACTION, T17_RATIONALITY_CUTOFF,
@@ -11,15 +12,17 @@ conn = sqlite3.connect("D:/Developer/Personal/Bots/PolyMarketTracker/polymarket.
 conn.row_factory = sqlite3.Row
 cur = conn.cursor()
 
+
 def parse_dt(s):
     if s is None:
         return None
     for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
         try:
             return datetime.strptime(s, fmt)
-        except:
+        except ValueError:
             pass
     return None
+
 
 # Get the 25 eligible markets
 cur.execute("""
@@ -121,12 +124,21 @@ for mkt in markets:
         'visible': len(visible),
     })
 
-print(f"T17 standalone accuracy: {correct_t17}/{total_tested} = {100*correct_t17/max(1,total_tested):.1f}%")
-print(f"\nDetail (sorted by signal):")
-print(f"{'Market':<24} {'Outcome':<8} {'Pred':<6} {'OK':<4} {'Signal':>8} {'Conf':>6} {'PubPost':>8} {'SmPost':>8} {'Diverg':>8} {'SmCnt':>6} {'Vis':>5}")
+print(f"T17 standalone accuracy: {correct_t17}/{total_tested} = {100 * correct_t17 / max(1, total_tested):.1f}%")
+print("\nDetail (sorted by signal):")
+header = (
+    f"{'Market':<24} {'Outcome':<8} {'Pred':<6} {'OK':<4}"
+    f" {'Signal':>8} {'Conf':>6} {'PubPost':>8} {'SmPost':>8} {'Diverg':>8} {'SmCnt':>6} {'Vis':>5}"
+)
+print(header)
 for r in sorted(results_detail, key=lambda x: x['signal']):
     ok = 'YES' if r['correct'] else 'NO'
-    print(f"  {r['id']:<24} {r['outcome']:<8} {r['predicted']:<6} {ok:<4} {r['signal']:>8.4f} {r['confidence']:>6.3f} {r['public_post']:>8.4f} {r['smart_post']:>8.4f} {r['divergence']:>8.4f} {r['smart_count']:>6} {r['visible']:>5}")
+    row = (
+        f"  {r['id']:<24} {r['outcome']:<8} {r['predicted']:<6} {ok:<4}"
+        f" {r['signal']:>8.4f} {r['confidence']:>6.3f} {r['public_post']:>8.4f}"
+        f" {r['smart_post']:>8.4f} {r['divergence']:>8.4f} {r['smart_count']:>6} {r['visible']:>5}"
+    )
+    print(row)
 
 # Check: how many markets have signal=0 (no smart bets)?
 zero_signal = [r for r in results_detail if r['signal'] == 0 or (r['signal'] > -0.01 and r['signal'] < 0.01)]

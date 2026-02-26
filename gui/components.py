@@ -87,9 +87,15 @@ def side_badge_html(signal: float) -> str:
 def wallet_flags_html(suspicious: bool, sandpit: bool) -> str:
     parts = []
     if suspicious:
-        parts.append(f'<span style="background:{COLORS["suspicious"]};color:white;padding:2px 6px;border-radius:4px;font-size:0.8em">Suspicious</span>')
+        parts.append(
+            f'<span style="background:{COLORS["suspicious"]};color:white;'
+            f'padding:2px 6px;border-radius:4px;font-size:0.8em">Suspicious</span>'
+        )
     if sandpit:
-        parts.append(f'<span style="background:{COLORS["sandpit"]};color:white;padding:2px 6px;border-radius:4px;font-size:0.8em">Sandpit</span>')
+        parts.append(
+            f'<span style="background:{COLORS["sandpit"]};color:white;'
+            f'padding:2px 6px;border-radius:4px;font-size:0.8em">Sandpit</span>'
+        )
     if not parts:
         return '<span style="color:#6b7280;font-size:0.8em">Clean</span>'
     return " ".join(parts)
@@ -100,7 +106,10 @@ def method_badges_html(methods: list[str]) -> str:
     for m in methods:
         cat = METHOD_INFO.get(m, ("?", ""))[0]
         color = category_color(cat)
-        parts.append(f'<span style="background:{color};color:white;padding:1px 5px;border-radius:3px;font-size:0.8em;margin-right:2px">{m}</span>')
+        parts.append(
+            f'<span style="background:{color};color:white;padding:1px 5px;'
+            f'border-radius:3px;font-size:0.8em;margin-right:2px">{m}</span>'
+        )
     return " ".join(parts)
 
 
@@ -112,24 +121,31 @@ def render_pick_card(rank: int, title: str, side: str, yes_price: float,
     buy_price = yes_price if side == "YES" else (1 - yes_price)
     # implied_score: rough display estimate of where the bot thinks YES sits.
     # Not a calibrated probability — edge / confidence is a heuristic rescaling.
-    implied_score = (yes_price + edge / max(confidence, 0.01)) if side == "YES" else (yes_price - edge / max(confidence, 0.01))
+    implied_score = (yes_price + edge / max(confidence, 0.01)
+                     ) if side == "YES" else (yes_price - edge / max(confidence, 0.01))
     implied_score = max(0, min(1, implied_score))
 
+    desc_html = (
+        f"<p style='color:#9ca3af;font-size:0.85em;margin-top:6px'>{description[:200]}</p>"
+        if description else ""
+    )
     st.markdown(
         f"""<div style="border:2px solid {border_color};border-radius:8px;padding:16px;margin-bottom:12px">
         <h4 style="margin:0">Pick #{rank} — <span style="color:{side_col}">BET {side}</span></h4>
         <p style="font-size:1.1em;margin:4px 0 8px 0"><strong>{title}</strong></p>
         <table style="width:100%;border-collapse:collapse">
         <tr><td style="color:#9ca3af;padding:2px 0">YES price</td><td><strong>${yes_price:.2f}</strong></td>
-            <td style="color:#9ca3af">NO price</td><td><strong>${1-yes_price:.2f}</strong></td></tr>
-        <tr><td style="color:#9ca3af;padding:2px 0">Buy at</td><td><strong>${buy_price:.2f}</strong> → pays <strong>$1.00</strong></td>
-            <td style="color:#9ca3af">Edge</td><td style="color:#eab308"><strong>{edge:.2f}</strong></td></tr>
+            <td style="color:#9ca3af">NO price</td><td><strong>${1 - yes_price:.2f}</strong></td></tr>
+        <tr><td style="color:#9ca3af;padding:2px 0">Buy at</td>
+            <td><strong>${buy_price:.2f}</strong> → pays <strong>$1.00</strong></td>
+            <td style="color:#9ca3af">Edge</td>
+            <td style="color:#eab308"><strong>{edge:.2f}</strong></td></tr>
         <tr><td style="color:#9ca3af;padding:2px 0">Confidence</td><td>{confidence:.2f}</td>
             <td style="color:#9ca3af">Madness</td><td>{madness:.2f}</td></tr>
         <tr><td style="color:#9ca3af;padding:2px 0">Bets analyzed</td><td>{n_bets}</td>
             <td></td><td></td></tr>
         </table>
-        {"<p style='color:#9ca3af;font-size:0.85em;margin-top:6px'>" + description[:200] + "</p>" if description else ""}
+        {desc_html}
         </div>""",
         unsafe_allow_html=True,
     )

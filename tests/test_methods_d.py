@@ -11,17 +11,20 @@ def test_d5_near_certain_yes(base_market):
     assert result.signal == 1.0
     assert result.confidence > 0.0
 
+
 def test_d5_near_certain_no(base_market):
     bets = [make_bet(odds=0.02), make_bet(odds=0.03), make_bet(odds=0.04)]
     result = d5_vacuous_truth(base_market, bets, {})
     assert result.signal == -1.0
     assert result.confidence > 0.0
 
+
 def test_d5_neutral_market(base_market):
     bets = [make_bet(odds=0.48), make_bet(odds=0.50), make_bet(odds=0.52)]
     result = d5_vacuous_truth(base_market, bets, {})
     assert result.signal == 0.0
     assert result.confidence == 0.0
+
 
 def test_d5_empty_bets(base_market):
     result = d5_vacuous_truth(base_market, [], {})
@@ -38,6 +41,7 @@ def test_d7_few_sharp_wallets_full_confidence(base_market):
     result = d7_pigeonhole(base_market, bets, wallets)
     assert result.confidence == pytest.approx(1.0)
 
+
 def test_d7_many_sharp_wallets_discounts_confidence(base_market):
     # 9 wallets, sqrt(9)=3, all 9 sharp → noise_ratio = 1-(3/9) = 0.667 → confidence < 1.0
     bets = [make_bet(wallet=f"W{i}", side="YES", amount=100) for i in range(9)]
@@ -45,6 +49,7 @@ def test_d7_many_sharp_wallets_discounts_confidence(base_market):
                for i in range(9)}
     result = d7_pigeonhole(base_market, bets, wallets)
     assert result.confidence < 1.0
+
 
 def test_d7_wallets_below_min_bets_not_counted(base_market):
     # W1 has total_bets=2 < D7_MIN_BETS(5) → excluded from qualified → sharp_count=0 → no discount
@@ -66,6 +71,7 @@ def test_d8_signal(base_market, yes_count, no_count, expected_signal):
             [make_bet(side="NO") for _ in range(no_count)])
     result = d8_boolean_sat(base_market, bets, {})
     assert result.signal == pytest.approx(expected_signal, abs=0.01)
+
 
 def test_d8_empty_bets(base_market):
     result = d8_boolean_sat(base_market, [], {})
@@ -89,12 +95,14 @@ def test_d9_emotional_wallets_filtered(base_market):
     assert result.signal == pytest.approx(1.0)
     assert all(b.wallet == "W2" for b in result.filtered_bets)
 
+
 def test_d9_all_clean_bets_unchanged(base_market):
     # No wallet with rationality < 0.4 → all bets pass through
     bets = [make_bet(wallet=f"W{i}", side="YES") for i in range(4)]
     wallets = {f"W{i}": make_wallet(address=f"W{i}", rationality=0.7) for i in range(4)}
     result = d9_set_partition(base_market, bets, wallets)
     assert len(result.filtered_bets) == 4
+
 
 def test_d9_empty_bets(base_market):
     result = d9_set_partition(base_market, [], {})

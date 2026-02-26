@@ -58,5 +58,5 @@ from methods import suspicious    # noqa: F401, E402
 from methods import discrete      # noqa: F401, E402
 from methods import emotional     # noqa: F401, E402
 from methods import statistical   # noqa: F401, E402
-from methods import psychological # noqa: F401, E402
+from methods import psychological  # noqa: F401, E402
 from methods import markov       # noqa: F401, E402

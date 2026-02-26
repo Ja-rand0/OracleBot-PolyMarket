@@ -37,12 +37,12 @@ display_df["fitness_score"] = display_df["fitness_score"].apply(lambda x: f"{x:.
 
 st.dataframe(
     display_df[["rank", "combo_id", "methods_str", "accuracy", "edge_vs_market",
-                 "false_positive_rate", "complexity", "fitness_score"]].rename(columns={
-        "rank": "#", "combo_id": "Combo", "methods_str": "Methods",
-        "accuracy": "Accuracy", "edge_vs_market": "Edge",
-        "false_positive_rate": "FPR", "complexity": "Size",
-        "fitness_score": "Fitness",
-    }),
+                "false_positive_rate", "complexity", "fitness_score"]].rename(columns={
+                    "rank": "#", "combo_id": "Combo", "methods_str": "Methods",
+                    "accuracy": "Accuracy", "edge_vs_market": "Edge",
+                    "false_positive_rate": "FPR", "complexity": "Size",
+                    "fitness_score": "Fitness",
+                }),
     use_container_width=True, hide_index=True,
 )
 
@@ -58,7 +58,8 @@ st.caption(
 )
 
 top10 = combos_df.head(10).copy()
-top10["acc_component"] = top10["accuracy"].apply(lambda x: float(x.strip('%')) / 100 if isinstance(x, str) else x) if top10["accuracy"].dtype == object else top10["accuracy"]
+top10["acc_component"] = top10["accuracy"].apply(lambda x: float(
+    x.strip('%')) / 100 if isinstance(x, str) else x) if top10["accuracy"].dtype == object else top10["accuracy"]
 
 # Recompute from raw values
 raw = get_top_combos(limit=10)
@@ -127,7 +128,8 @@ if selected_combo:
 
     dc1, dc2, dc3, dc4 = st.columns(4)
     acc_val = float(row["accuracy"].strip('%')) / 100 if isinstance(row["accuracy"], str) else row["accuracy"]
-    fpr_val = float(row["false_positive_rate"].strip('%')) / 100 if isinstance(row["false_positive_rate"], str) else row["false_positive_rate"]
+    fpr_val = float(row["false_positive_rate"].strip('%')) / \
+        100 if isinstance(row["false_positive_rate"], str) else row["false_positive_rate"]
     edge_val = float(row["edge_vs_market"]) if isinstance(row["edge_vs_market"], str) else row["edge_vs_market"]
     fit_val = float(row["fitness_score"]) if isinstance(row["fitness_score"], str) else row["fitness_score"]
 

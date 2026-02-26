@@ -48,7 +48,7 @@ df, total = get_markets_paginated(
 )
 
 total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
-st.caption(f"Showing {offset+1}–{min(offset+PAGE_SIZE, total)} of {total:,} markets")
+st.caption(f"Showing {offset + 1}–{min(offset + PAGE_SIZE, total)} of {total:,} markets")
 
 # Page navigation
 nav_c1, nav_c2, nav_c3 = st.columns([1, 2, 1])

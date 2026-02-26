@@ -9,8 +9,8 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
-from gui.db_queries import get_method_performance, get_method_cooccurrence, get_top_combos
-from gui.components import METHOD_INFO, COLORS, CATEGORY_NAMES, category_color
+from gui.db_queries import get_method_performance, get_method_cooccurrence
+from gui.components import METHOD_INFO, CATEGORY_NAMES, category_color
 
 st.set_page_config(page_title="OracleBot — Method Performance", layout="wide")
 st.title(":microscope: Method Performance")

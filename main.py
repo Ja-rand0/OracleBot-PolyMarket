@@ -62,7 +62,7 @@ def update_wallet_stats(conn) -> dict[str, Wallet]:
         wins = row[4] or 0
         resolved_bets = row[5] or 0
         round_bets = row[6] or 0
-        yes_bets   = row[7] or 0
+        yes_bets = row[7] or 0
 
         win_rate = wins / resolved_bets if resolved_bets > 0 else 0.0
         round_ratio = round_bets / total_bets if total_bets > 0 else 0.0
@@ -242,6 +242,11 @@ def run_analysis(conn) -> None:
     """Run the full analysis pipeline: update wallets, run combinator, generate report."""
     log.info("=== Starting analysis cycle ===")
 
+    # Resolve any pending predictions before generating new ones
+    resolved_count = db.update_prediction_outcomes(conn)
+    if resolved_count:
+        log.info("Updated %d predictions with resolved outcomes", resolved_count)
+
     wallets = update_wallet_stats(conn)
 
     # Only load resolved markets that actually have bet data (via SQL count)
@@ -267,7 +272,7 @@ def run_analysis(conn) -> None:
         run_full_optimization(conn, train_markets, train_bets, wallets, holdout_markets, holdout_bets)
     else:
         log.warning("Only %d usable resolved markets — need 10+ for optimization",
-                     len(usable_resolved))
+                    len(usable_resolved))
 
     # Free resolved data before loading active data
     del resolved_bets

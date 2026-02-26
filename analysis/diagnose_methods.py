@@ -17,6 +17,7 @@ DB_PATH = r'D:\Developer\Personal\Bots\PolyMarketTracker\data.db'
 import_results = {}
 methods = {}
 
+
 def try_import(fn_name, module_path, actual_fn_name=None):
     if actual_fn_name is None:
         actual_fn_name = fn_name
@@ -32,6 +33,7 @@ def try_import(fn_name, module_path, actual_fn_name=None):
     except Exception as e:
         import_results[fn_name] = f"ERROR: {type(e).__name__}: {e}"
 
+
 try_import("D7", "methods.discrete", "d7_pigeonhole")
 try_import("D8", "methods.discrete", "d8_boolean_sat")
 try_import("E10", "methods.emotional", "e10_loyalty_bias")
@@ -45,6 +47,8 @@ try_import("P22", "methods.psychological", "p22_herding")
 try_import("M27", "methods.markov", "m27_flow_momentum")
 
 # ── DB helpers ─────────────────────────────────────────────────────────────────
+
+
 def load_data():
     db = sqlite3.connect(DB_PATH, timeout=30)
     db.row_factory = sqlite3.Row
@@ -67,7 +71,8 @@ def load_data():
             id=mrow["id"],
             title=mrow["title"],
             description=mrow["description"] or "",
-            end_date=datetime.fromisoformat(mrow["end_date"]) if mrow["end_date"] else datetime.now(timezone.utc).replace(tzinfo=None),
+            end_date=datetime.fromisoformat(mrow["end_date"]) if mrow["end_date"] else datetime.now(
+                timezone.utc).replace(tzinfo=None),
             resolved=bool(mrow["resolved"]),
             outcome=mrow["outcome"],
             created_at=datetime.fromisoformat(mrow["created_at"]),
@@ -97,7 +102,8 @@ def load_data():
         wallets = {
             r["address"]: Wallet(
                 address=r["address"],
-                first_seen=datetime.fromisoformat(r["first_seen"]) if r["first_seen"] else datetime.now(timezone.utc).replace(tzinfo=None),
+                first_seen=datetime.fromisoformat(r["first_seen"]) if r["first_seen"] else datetime.now(
+                    timezone.utc).replace(tzinfo=None),
                 total_bets=r["total_bets"],
                 total_volume=r["total_volume"],
                 win_rate=r["win_rate"],
@@ -150,7 +156,7 @@ for (market, bets, wallets, cnt) in test_markets:
             conf = result.confidence
             meta = result.metadata
             err = None
-        except Exception as e:
+        except Exception:
             sig, conf, meta, err = 0.0, 0.0, {}, traceback.format_exc()
 
         all_results[method_id].append({
@@ -174,7 +180,7 @@ print("=" * 70)
 print("SUMMARY TABLE")
 print("=" * 70)
 print(f"  {'Method':<6}  {'AvgConf':>8}  {'MaxConf':>8}  {'AvgSig':>8}  Verdict")
-print(f"  {'-'*6}  {'-'*8}  {'-'*8}  {'-'*8}  -------")
+print(f"  {'-' * 6}  {'-' * 8}  {'-' * 8}  {'-' * 8}  -------")
 
 verdicts = {}
 for method_id, runs in all_results.items():
@@ -182,11 +188,11 @@ for method_id, runs in all_results.items():
         verdicts[method_id] = ("N/A", "No data")
         continue
     confs = [r["confidence"] for r in runs]
-    sigs  = [r["signal"]     for r in runs]
-    errs  = [r["error"]      for r in runs if r["error"]]
+    sigs = [r["signal"] for r in runs]
+    errs = [r["error"] for r in runs if r["error"]]
     avg_conf = sum(confs) / len(confs)
     max_conf = max(confs)
-    avg_sig  = sum(sigs)  / len(sigs)
+    avg_sig = sum(sigs) / len(sigs)
 
     if errs:
         verdict = "BROKEN(exception)"
@@ -210,7 +216,7 @@ print("=" * 70)
 for method_id, runs in all_results.items():
     print(f"\n--- {method_id} ---")
     for i, r in enumerate(runs):
-        print(f"  Market {i+1}: {r['market'][:40]!r}")
+        print(f"  Market {i + 1}: {r['market'][:40]!r}")
         print(f"    signal={r['signal']:+.4f}  confidence={r['confidence']:.4f}")
         if r["error"]:
             print(f"    EXCEPTION:\n{r['error']}")

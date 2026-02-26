@@ -1,5 +1,6 @@
 """Backtest analyst Q7d: investigate WHY accuracy=1.0. Simulate the backtest logic. Read-only."""
-import sqlite3, json, sys
+import sqlite3
+import sys
 from datetime import datetime, timedelta
 from statistics import median
 
@@ -25,6 +26,7 @@ cur.execute("""
 markets = cur.fetchall()
 print(f"Markets eligible for backtest: {len(markets)}")
 
+
 def parse_dt(s):
     if s is None:
         return None
@@ -34,6 +36,7 @@ def parse_dt(s):
         except Exception:
             pass
     return None
+
 
 # For each market, get bets and check what survives the cutoff filter
 actual_backtest_markets = []
@@ -88,13 +91,17 @@ if skipped:
 
 # Distribution of market_implied vs actual outcome
 correct_mkt = sum(1 for m in actual_backtest_markets if m['market_implied'] == m['outcome'])
-print(f"\nMarket-implied baseline accuracy: {correct_mkt}/{len(actual_backtest_markets)} = {100*correct_mkt/max(1,len(actual_backtest_markets)):.1f}%")
+total = len(actual_backtest_markets)
+print(f"\nMarket-implied baseline accuracy: {correct_mkt}/{total} = {100 * correct_mkt / max(1, total):.1f}%")
 
 # Are markets where the bot adds edge (market_implied != outcome)?
 wrong_mkt = [m for m in actual_backtest_markets if m['market_implied'] != m['outcome']]
 print(f"Markets where market-implied is WRONG (where bot could add edge): {len(wrong_mkt)}")
 for m in wrong_mkt:
-    print(f"  {m['id']}  outcome={m['outcome']}  market_implied={m['market_implied']}  market_odds={m['market_odds']:.3f}  visible={m['visible_bets']}")
+    print(
+        f"  {m['id']}  outcome={m['outcome']}  market_implied={m['market_implied']}"
+        f"  market_odds={m['market_odds']:.3f}  visible={m['visible_bets']}"
+    )
 
 # Median YES probability across all backtest markets
 all_odds = [m['market_odds'] for m in actual_backtest_markets]
@@ -105,6 +112,9 @@ print(f"Markets with market_odds <= 0.5 (market implies NO): {sum(1 for o in all
 print("\nAll backtest markets (sorted by market_odds):")
 for m in sorted(actual_backtest_markets, key=lambda x: x['market_odds']):
     correct_flag = "OK" if m['market_implied'] == m['outcome'] else "MISS"
-    print(f"  {m['id']:<22} outcome={m['outcome']:<4} implied={m['market_implied']:<4} odds={m['market_odds']:.3f}  visible={m['visible_bets']:4d}  {correct_flag}")
+    print(
+        f"  {m['id']:<22} outcome={m['outcome']:<4} implied={m['market_implied']:<4}"
+        f" odds={m['market_odds']:.3f}  visible={m['visible_bets']:4d}  {correct_flag}"
+    )
 
 conn.close()

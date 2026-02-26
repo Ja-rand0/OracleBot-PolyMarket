@@ -1,4 +1,3 @@
-import pytest
 from methods.statistical import t17_bayesian, t18_benfords_law, t19_zscore_outlier
 from tests.conftest import make_bet, make_wallet
 
@@ -18,6 +17,7 @@ def test_t17_smart_leans_yes_public_no(base_market):
     result = t17_bayesian(base_market, bets, wallets)
     assert result.signal > 0.0
 
+
 def test_t17_no_smart_wallets_balanced_bets(base_market):
     # All wallets below T17_RATIONALITY_CUTOFF=0.58 (smart_count=0 → smart_posterior=prior).
     # Equal YES and NO bets → public_posterior ≈ prior → divergence ≈ 0 → low signal.
@@ -27,6 +27,7 @@ def test_t17_no_smart_wallets_balanced_bets(base_market):
     result = t17_bayesian(base_market, bets, wallets)
     assert result.metadata["smart_bets"] == 0
     assert abs(result.signal) < 0.2   # balanced public → near-zero divergence
+
 
 def test_t17_empty_bets(base_market):
     result = t17_bayesian(base_market, [], {})
@@ -42,6 +43,7 @@ def test_t18_all_same_amount_flagged(base_market):
     result = t18_benfords_law(base_market, bets, {})
     assert result.metadata["is_suspicious"]
     assert result.confidence > 0.5
+
 
 def test_t18_too_few_bets(base_market):
     bets = [make_bet(wallet=f"W{i}", amount=100) for i in range(19)]
@@ -60,6 +62,7 @@ def test_t19_large_rational_bet_signals_yes(base_market):
     assert result.signal > 0.0
     assert result.confidence > 0.0
 
+
 def test_t19_no_outliers_returns_zero(base_market):
     # Tightly clustered amounts [100..104]: max z ≈ 1.4 < 2.5 → no outliers detected
     bets = [make_bet(wallet=f"W{i}", side="YES" if i % 2 == 0 else "NO", amount=100 + i)
@@ -67,6 +70,7 @@ def test_t19_no_outliers_returns_zero(base_market):
     result = t19_zscore_outlier(base_market, bets, {})
     assert result.signal == 0.0
     assert result.confidence == 0.0
+
 
 def test_t19_missing_wallet_does_not_crash(base_market):
     # Wallet not in dict → code defaults to rationality=0.5 — must not KeyError.
@@ -78,6 +82,7 @@ def test_t19_missing_wallet_does_not_crash(base_market):
     result = t19_zscore_outlier(base_market, bets, {})
     assert isinstance(result.signal, float)
     assert 0.0 <= result.confidence <= 1.0
+
 
 def test_t19_empty_bets(base_market):
     result = t19_zscore_outlier(base_market, [], {})

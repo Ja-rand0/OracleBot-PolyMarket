@@ -17,12 +17,14 @@ def test_m26_insufficient_bets(base_market):
     assert result.signal == 0.0
     assert result.confidence == 0.0
 
+
 def test_m26_short_time_span(base_market):
     # 15 bets all within 30 minutes (< 1 hour minimum).
     bets = [make_bet(offset_hours=0.5 * i / 14) for i in range(15)]
     result = m26_market_phases(base_market, bets, {})
     assert result.signal == 0.0
     assert result.confidence == 0.0
+
 
 def test_m26_trending_high_signals_yes(base_market):
     # 15 bets at odds=0.75 (> M26_HIGH_THRESHOLD=0.65) spread over 5 hours.
@@ -31,6 +33,7 @@ def test_m26_trending_high_signals_yes(base_market):
     result = m26_market_phases(base_market, bets, {})
     assert result.signal == pytest.approx(1.0)
     assert result.confidence > 0.0
+
 
 def test_m26_trending_low_signals_no(base_market):
     # 15 bets at odds=0.20 (< M26_LOW_THRESHOLD=0.35) → all LOW → signal=-1.0.
@@ -46,11 +49,13 @@ def test_m27_insufficient_bets(base_market):
     assert result.signal == 0.0
     assert result.confidence == 0.0
 
+
 def test_m27_short_time_span(base_market):
     bets = [make_bet(offset_hours=0.5 * i / 14) for i in range(15)]
     result = m27_flow_momentum(base_market, bets, {})
     assert result.signal == 0.0
     assert result.confidence == 0.0
+
 
 def test_m27_momentum_yes_signals_yes(base_market):
     # 15 YES bets spread over 5 hours → all windows YES_HEAVY →
@@ -68,6 +73,7 @@ def test_m28_insufficient_bets(base_market):
     assert result.signal == 0.0
     assert result.confidence == 0.0
 
+
 def test_m28_insufficient_smart_wallets(base_market):
     # Only 1 smart wallet → < M28_MIN_SMART_WALLETS=3 → early return.
     bets = [make_bet(wallet="S1", side="YES", amount=100)] * 10
@@ -75,6 +81,7 @@ def test_m28_insufficient_smart_wallets(base_market):
     result = m28_smart_follow(base_market, bets, wallets)
     assert result.signal == 0.0
     assert "insufficient" in result.metadata.get("reason", "")
+
 
 def test_m28_smart_leads_yes_signals_yes(base_market):
     # 3 smart wallets (rationality=0.7), 3 retail wallets (rationality=0.3).

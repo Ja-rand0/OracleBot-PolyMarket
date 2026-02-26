@@ -6,7 +6,6 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 
-import numpy as np
 
 import config
 from data import db
@@ -47,7 +46,8 @@ def _run_best_combo(
     confidence = total_w / len(results)
 
     # Emotion ratio for P24 / wisdom-madness
-    emotional_count = sum(1 for b in bets if (wallets.get(b.wallet) or Wallet(address="")).rationality_score < 0.4)
+    emotional_count = sum(1 for b in bets
+                          if (wallets[b.wallet].rationality_score if b.wallet in wallets else 0.5) < 0.4)
     emotion_ratio = emotional_count / len(bets) if bets else 0.0
 
     return (
@@ -55,6 +55,26 @@ def _run_best_combo(
         min(1.0, confidence),
         {"emotion_ratio": emotion_ratio},
     )
+
+
+def _log_predictions(
+    conn,
+    market_scores: list,
+    combo_id: str,
+    timestamp: str,
+) -> None:
+    """Insert a predictions row for each scored pick. Batch-committed."""
+    predicted_at = timestamp.replace("_", "T") + "Z"
+    for market, _ratio, signal, confidence, _n, price in market_scores:
+        side = "YES" if signal > 0 else "NO"
+        directional_score = 0.5 + signal * 0.5
+        edge = abs(directional_score - price) * confidence
+        db.insert_prediction(
+            conn, market.id, predicted_at, side,
+            price, signal, confidence, edge, combo_id,
+        )
+    conn.commit()
+    log.debug("Logged %d predictions (combo=%s)", len(market_scores), combo_id)
 
 
 def generate_report(
@@ -136,6 +156,10 @@ def generate_report(
     # Drop markets where the bot has no meaningful edge
     market_scores = [m for m in market_scores if _edge_score(m) > 0.01]
 
+    # --- Log predictions for real-time validation tracking ---
+    combo_id = top_combos[0].combo_id if top_combos else "unknown"
+    _log_predictions(conn, market_scores[:20], combo_id, timestamp)
+
     # --- TOP 3 PICKS ---
     lines.append("## TOP 3 PICKS")
     lines.append("")
@@ -147,14 +171,15 @@ def generate_report(
         buy_price = price if signal > 0 else (1 - price)
         directional_score = 0.5 + signal * 0.5
         edge = abs(directional_score - price) * confidence
-        lines.append(f"### #{i+1}  BET {side}")
+        lines.append(f"### #{i + 1}  BET {side}")
         lines.append(f"**{market.title}**")
-        lines.append(f"")
+        lines.append("")
         lines.append(f"- **Action:** Buy **{side}** shares")
-        lines.append(f"- **Current YES price:** ${price:.2f}  |  **Current NO price:** ${1-price:.2f}")
+        lines.append(f"- **Current YES price:** ${price:.2f}  |  **Current NO price:** ${1 - price:.2f}")
         lines.append(f"- **You buy at:** ${buy_price:.2f}  |  **Pays:** $1.00 if correct")
         lines.append(f"- **Score:** {directional_score:.0%} YES  vs  market {price:.0%}  |  **Edge:** {edge:.2f}")
-        lines.append(f"- **Confidence:** {confidence:.2f}  |  **Madness Ratio:** {ratio:.2f}  |  **Bets Analyzed:** {n_bets}")
+        lines.append(
+            f"- **Confidence:** {confidence:.2f}  |  **Madness Ratio:** {ratio:.2f}  |  **Bets Analyzed:** {n_bets}")
         if market.description:
             desc = market.description[:200].replace("\n", " ")
             lines.append(f"- **Details:** {desc}")
@@ -173,7 +198,7 @@ def generate_report(
         edge = abs(directional_score - price) * confidence
         title = market.title[:50]
         lines.append(
-            f"| {i+1} | {title} | BET {side} | ${buy_price:.2f} | "
+            f"| {i + 1} | {title} | BET {side} | ${buy_price:.2f} | "
             f"{edge:.2f} | {confidence:.2f} | {ratio:.2f} |"
         )
 

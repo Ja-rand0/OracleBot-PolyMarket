@@ -12,7 +12,6 @@ import json
 import os
 import re
 import sqlite3
-from datetime import datetime
 
 import pandas as pd
 import streamlit as st
@@ -132,7 +131,7 @@ def get_markets_paginated(
         df = pd.DataFrame(
             [dict(r) for r in rows],
             columns=["id", "title", "end_date", "resolved", "outcome",
-                      "created_at", "bet_count", "total_volume"],
+                     "created_at", "bet_count", "total_volume"],
         )
         return df, total
     finally:

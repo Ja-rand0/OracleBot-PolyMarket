@@ -1,5 +1,6 @@
 """Backtest analyst Q7b: deeper accuracy diagnosis. Read-only."""
-import sqlite3, json, sys
+import sqlite3
+import sys
 sys.path.insert(0, 'D:/Developer/Personal/Bots/PolyMarketTracker')
 
 conn = sqlite3.connect("D:/Developer/Personal/Bots/PolyMarketTracker/polymarket.db", timeout=30)
@@ -30,14 +31,14 @@ from collections import Counter
 outcomes = Counter(r['outcome'] for r in rows)
 print("Outcome breakdown:")
 for outcome, cnt in sorted(outcomes.items()):
-    print(f"  {outcome}: {cnt} ({100*cnt/len(rows):.1f}%)")
+    print(f"  {outcome}: {cnt} ({100 * cnt / len(rows):.1f}%)")
 
 total_yes = outcomes.get('YES', 0)
 total_no = outcomes.get('NO', 0)
 total = total_yes + total_no
 if total > 0:
-    print(f"\nBaseline accuracy (always-YES strategy): {100*total_yes/total:.1f}%")
-    print(f"Baseline accuracy (always-NO strategy): {100*total_no/total:.1f}%")
+    print(f"\nBaseline accuracy (always-YES strategy): {100 * total_yes / total:.1f}%")
+    print(f"Baseline accuracy (always-NO strategy): {100 * total_no / total:.1f}%")
 
 # How many of those 28 markets had most bets BEFORE the cutoff?
 # Check bet timing relative to market lifespan

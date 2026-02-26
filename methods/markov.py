@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-from collections import defaultdict
 from statistics import median
 
 import config

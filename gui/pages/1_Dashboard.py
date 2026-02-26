@@ -13,7 +13,7 @@ from gui.db_queries import (
     get_top_combos,
     parse_latest_report,
 )
-from gui.components import render_pick_card, COLORS
+from gui.components import render_pick_card
 
 st.set_page_config(page_title="OracleBot — Dashboard", layout="wide")
 st.title(":bar_chart: Dashboard")

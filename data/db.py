@@ -110,9 +110,25 @@ def init_db(conn: sqlite3.Connection) -> None:
             holdout_fpr     REAL
         );
 
+        CREATE TABLE IF NOT EXISTS predictions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            market_id TEXT NOT NULL,
+            predicted_at TEXT NOT NULL,
+            predicted_side TEXT NOT NULL,
+            market_price_at_prediction REAL,
+            bot_signal REAL,
+            bot_confidence REAL,
+            bot_edge REAL,
+            combo_id TEXT,
+            resolved_at TEXT,
+            actual_outcome TEXT,
+            correct INTEGER
+        );
+
         CREATE INDEX IF NOT EXISTS idx_bets_market ON bets(market_id);
         CREATE INDEX IF NOT EXISTS idx_bets_wallet ON bets(wallet);
         CREATE INDEX IF NOT EXISTS idx_bets_timestamp ON bets(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_predictions_market ON predictions(market_id);
         """
     )
     conn.commit()
@@ -523,6 +539,66 @@ def get_latest_holdout_results(conn: sqlite3.Connection, limit: int = 3) -> list
         """,
         (limit,),
     ).fetchall()
+
+
+# ---------------------------------------------------------------------------
+# Predictions CRUD
+# ---------------------------------------------------------------------------
+def insert_prediction(
+    conn: sqlite3.Connection,
+    market_id: str,
+    predicted_at: str,
+    predicted_side: str,
+    market_price: float,
+    bot_signal: float,
+    bot_confidence: float,
+    bot_edge: float,
+    combo_id: str,
+) -> None:
+    """Log a pick at report generation time. resolved_at/actual_outcome/correct filled later."""
+    conn.execute(
+        """
+        INSERT INTO predictions
+            (market_id, predicted_at, predicted_side, market_price_at_prediction,
+             bot_signal, bot_confidence, bot_edge, combo_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (market_id, predicted_at, predicted_side, market_price,
+         bot_signal, bot_confidence, bot_edge, combo_id),
+    )
+
+
+def update_prediction_outcomes(conn: sqlite3.Connection) -> int:
+    """Fill in actual_outcome + correct for any predictions whose market has since resolved.
+
+    Returns the number of rows updated.
+    """
+    cur = conn.execute(
+        """
+        UPDATE predictions
+        SET
+            actual_outcome = (
+                SELECT m.outcome FROM markets m WHERE m.id = predictions.market_id
+            ),
+            resolved_at = (
+                SELECT m.end_date FROM markets m WHERE m.id = predictions.market_id
+            ),
+            correct = CASE
+                WHEN (SELECT m.outcome FROM markets m WHERE m.id = predictions.market_id)
+                     = predictions.predicted_side
+                THEN 1 ELSE 0
+            END
+        WHERE correct IS NULL
+          AND EXISTS (
+              SELECT 1 FROM markets m
+              WHERE m.id = predictions.market_id
+                AND m.resolved = 1
+                AND m.outcome IS NOT NULL
+          )
+        """
+    )
+    conn.commit()
+    return cur.rowcount
 
 
 def get_top_combos(conn: sqlite3.Connection, limit: int = 10) -> list[ComboResults]:

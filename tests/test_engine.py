@@ -1,9 +1,9 @@
 import pytest
 from datetime import datetime, timedelta, timezone
-from data.models import Market, Bet, ComboResults
+from data.models import Market, ComboResults
 from engine.fitness import calculate_fitness
 from engine.backtest import split_holdout, backtest_combo
-from tests.conftest import make_bet, make_wallet
+from tests.conftest import make_bet
 import config
 
 
@@ -16,6 +16,7 @@ def test_fitness_formula():
     cr.fitness_score = calculate_fitness(cr)
     expected = 1.0 * 0.35 + 1.0 * 0.35 - 0.0 * 0.20 - (1 / config.TOTAL_METHODS) * 0.10
     assert cr.fitness_score == pytest.approx(expected, abs=0.001)
+
 
 def test_fitness_complexity_penalty():
     def make_cr(complexity):
@@ -35,16 +36,19 @@ def _make_market(i):
                   end_date=now, resolved=True,
                   created_at=now - timedelta(days=100 - i))
 
+
 def test_split_holdout_sizes():
     markets = [_make_market(i) for i in range(10)]
     train, holdout = split_holdout(markets, 0.20)
     assert len(train) == 8
     assert len(holdout) == 2
 
+
 def test_split_holdout_temporal_order():
     markets = [_make_market(i) for i in range(10)]
     train, holdout = split_holdout(markets, 0.20)
     assert max(m.created_at for m in train) <= min(m.created_at for m in holdout)
+
 
 def test_split_holdout_empty():
     train, holdout = split_holdout([], 0.20)

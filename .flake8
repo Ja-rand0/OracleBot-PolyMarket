@@ -1,0 +1,8 @@
+[flake8]
+max-line-length = 120
+per-file-ignores =
+    analysis/*.py: E402
+    gui/app.py: E402
+    gui/pages/*.py: E402
+    test_pipeline.py: E402
+    tests/test_methods_d.py: E402

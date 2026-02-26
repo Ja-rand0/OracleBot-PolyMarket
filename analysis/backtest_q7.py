@@ -1,5 +1,6 @@
 """Backtest analyst Q7: sample size diagnosis. Read-only."""
-import sqlite3, json, sys
+import sqlite3
+import sys
 sys.path.insert(0, 'D:/Developer/Personal/Bots/PolyMarketTracker')
 
 from config import BACKTEST_CUTOFF_FRACTION, S1_MIN_RESOLVED_BETS

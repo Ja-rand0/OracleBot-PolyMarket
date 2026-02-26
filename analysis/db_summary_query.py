@@ -125,7 +125,10 @@ print()
 print("=== 7. WALLET RELATIONSHIPS ===")
 print(f"  Total relationships recorded: {wr[0]}")
 if wr[0] and wr[0] > 0:
-    cur.execute("SELECT relationship_type, COUNT(*), AVG(confidence) FROM wallet_relationships GROUP BY relationship_type")
+    cur.execute(
+        "SELECT relationship_type, COUNT(*), AVG(confidence)"
+        " FROM wallet_relationships GROUP BY relationship_type"
+    )
     for row in cur.fetchall():
         print(f"    {row[0]}: {row[1]} pairs, avg confidence={row[2]:.3f}")
 

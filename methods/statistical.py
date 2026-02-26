@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import math
-from collections import Counter, defaultdict
+from collections import Counter
 
 import numpy as np
 from scipy import stats

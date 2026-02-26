@@ -4,7 +4,6 @@ from __future__ import annotations
 import logging
 import math
 from collections import defaultdict
-from datetime import timedelta
 
 import numpy as np
 
@@ -393,7 +392,7 @@ def e16_bipartite_pruning(
         if w is None or w.total_bets < 3:
             continue
         p_yes = max(w.yes_bet_ratio, 1e-10)
-        p_no  = max(1.0 - w.yes_bet_ratio, 1e-10)
+        p_no = max(1.0 - w.yes_bet_ratio, 1e-10)
         kl = p_yes * math.log(p_yes / 0.5) + p_no * math.log(p_no / 0.5)
         if kl > config.E16_KL_THRESHOLD:
             emotional_wallets.add(addr)

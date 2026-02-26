@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import logging
-import math
-from collections import defaultdict, deque
 from datetime import timedelta
 
 import numpy as np
@@ -93,6 +91,7 @@ def p21_prospect_theory(
 
     # Prospect theory weighting function
     gamma = 0.61
+
     def weight(p: float) -> float:
         if p <= 0 or p >= 1:
             return p
@@ -262,7 +261,6 @@ def p23_anchoring(
         late_total = late_yes + late_no
         if late_total > 0:
             late_signal = (late_yes - late_no) / late_total
-            anchor_signal = 1.0 if anchor.side == "YES" else -1.0
             # If late money disagrees with anchor, there's an exploitable gap
             signal = late_signal
         else:

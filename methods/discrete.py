@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-from collections import defaultdict
 
 import numpy as np
 
@@ -56,7 +55,6 @@ def d5_vacuous_truth(
         filtered_bets=bets,
         metadata={"median_odds": median_odds},
     )
-
 
 
 # ---------------------------------------------------------------------------

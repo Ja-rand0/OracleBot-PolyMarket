@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import gc
 import logging
-import sys
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -22,7 +21,7 @@ from rich.table import Table
 
 import config
 from data import db
-from data.models import Bet, Wallet
+from data.models import Bet
 from data.scraper import fetch_markets, fetch_resolved_markets, fetch_trades_for_market
 from engine.backtest import split_holdout
 from engine.combinator import run_full_optimization
@@ -324,7 +323,7 @@ def display_report(conn, picks: list | None = None):
             pick_table.add_row("Action", f"[{side_style}]BET {side}[/]")
             pick_table.add_row("Market", market.title[:70])
             pick_table.add_row("YES price", f"${price:.2f}")
-            pick_table.add_row("NO price", f"${1-price:.2f}")
+            pick_table.add_row("NO price", f"${1 - price:.2f}")
             pick_table.add_row("You buy at", f"[bold]${buy_price:.2f}[/]  →  pays [bold]$1.00[/] if correct")
             pick_table.add_row("Score", f"{directional_score:.0%} YES  vs  market {price:.0%}")
             pick_table.add_row("Edge", f"[bold yellow]{edge:.2f}[/]")
@@ -337,7 +336,7 @@ def display_report(conn, picks: list | None = None):
 
             console.print(Panel(
                 pick_table,
-                title=f"[bold yellow]PICK #{i+1}[/]  [{side_style}]BET {side}[/]",
+                title=f"[bold yellow]PICK #{i + 1}[/]  [{side_style}]BET {side}[/]",
                 border_style=border,
                 expand=False,
             ))

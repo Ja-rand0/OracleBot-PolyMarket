@@ -28,7 +28,8 @@ for row in top:
         continue
     market = Market(
         id=mrow['id'], title=mrow['title'] or '', description=mrow['description'] or '',
-        end_date=datetime.fromisoformat(mrow['end_date']) if mrow['end_date'] else datetime.now(timezone.utc).replace(tzinfo=None),
+        end_date=datetime.fromisoformat(mrow['end_date']) if mrow['end_date'] else datetime.now(
+            timezone.utc).replace(tzinfo=None),
         resolved=bool(mrow['resolved']), outcome=mrow['outcome'],
         created_at=datetime.fromisoformat(mrow['created_at'])
     )
@@ -41,7 +42,8 @@ for row in top:
     wrows = conn.execute(f"SELECT * FROM wallets WHERE address IN ({ph})", addrs).fetchall()
     wallets = {r['address']: Wallet(
         address=r['address'],
-        first_seen=datetime.fromisoformat(r['first_seen']) if r['first_seen'] else datetime.now(timezone.utc).replace(tzinfo=None),
+        first_seen=datetime.fromisoformat(r['first_seen']) if r['first_seen'] else datetime.now(
+            timezone.utc).replace(tzinfo=None),
         total_bets=r['total_bets'], total_volume=r['total_volume'],
         win_rate=r['win_rate'], rationality_score=r['rationality_score'],
         flagged_suspicious=bool(r['flagged_suspicious']), flagged_sandpit=bool(r['flagged_sandpit'])
@@ -87,7 +89,10 @@ for method_id in target_methods:
 
             if method_id == 'D8':
                 yes_ratio = result.metadata.get('yes_ratio', 'N/A')
-                conf_verdict = 'DYNAMIC (fix applied)' if result.confidence != 0.2 else 'STATIC 0.2 -- BUG STILL PRESENT!'
+                conf_verdict = (
+                    'DYNAMIC (fix applied)' if result.confidence != 0.2
+                    else 'STATIC 0.2 -- BUG STILL PRESENT!'
+                )
                 print(f"    D8 yes_ratio={yes_ratio}, {conf_verdict}")
 
             if method_id == 'P20':

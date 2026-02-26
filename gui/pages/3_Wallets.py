@@ -45,7 +45,7 @@ df, total = get_wallets_paginated(
 )
 
 total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
-st.caption(f"Showing {offset+1}–{min(offset+PAGE_SIZE, total)} of {total:,} wallets")
+st.caption(f"Showing {offset + 1}–{min(offset + PAGE_SIZE, total)} of {total:,} wallets")
 
 nav_c1, nav_c2, nav_c3 = st.columns([1, 2, 1])
 with nav_c1:
@@ -73,11 +73,11 @@ if not df.empty:
     )
     st.dataframe(
         display_df[["address_short", "total_bets", "total_volume", "win_rate",
-                     "rationality_score", "flags"]].rename(columns={
-            "address_short": "Address", "total_bets": "Bets",
-            "total_volume": "Volume", "win_rate": "Win Rate",
-            "rationality_score": "Rationality", "flags": "Flags",
-        }),
+                    "rationality_score", "flags"]].rename(columns={
+                        "address_short": "Address", "total_bets": "Bets",
+                        "total_volume": "Volume", "win_rate": "Win Rate",
+                        "rationality_score": "Rationality", "flags": "Flags",
+                    }),
         use_container_width=True, hide_index=True,
     )
 
@@ -88,9 +88,9 @@ if not df.empty:
     st.subheader("Wallet Profile")
 
     wallet_options = list(df["address"])
-    wallet_labels = [f"{a[:14]}... ({df.loc[df['address']==a, 'total_bets'].values[0]} bets)" for a in wallet_options]
+    wallet_labels = [f"{a[:14]}... ({df.loc[df['address'] == a, 'total_bets'].values[0]} bets)" for a in wallet_options]
     selected_idx = st.selectbox("Select wallet", range(len(wallet_labels)),
-                                 format_func=lambda i: wallet_labels[i] if i < len(wallet_labels) else "")
+                                format_func=lambda i: wallet_labels[i] if i < len(wallet_labels) else "")
 
     if selected_idx is not None and selected_idx < len(wallet_options):
         address = wallet_options[selected_idx]
@@ -98,7 +98,8 @@ if not df.empty:
 
         if detail:
             st.markdown(f"**Address:** `{detail['address']}`")
-            st.markdown(wallet_flags_html(detail["flagged_suspicious"], detail["flagged_sandpit"]), unsafe_allow_html=True)
+            st.markdown(wallet_flags_html(detail["flagged_suspicious"],
+                        detail["flagged_sandpit"]), unsafe_allow_html=True)
 
             wc1, wc2, wc3, wc4 = st.columns(4)
             wc1.metric("Win Rate", f"{detail['win_rate']:.0%}")
@@ -147,7 +148,7 @@ if not df.empty:
                 bets_display["amount"] = bets_display["amount"].apply(lambda x: f"${x:,.2f}")
                 bets_display["odds"] = bets_display["odds"].apply(lambda x: f"{x:.2f}")
                 st.dataframe(bets_display, use_container_width=True, hide_index=True)
-                st.caption(f"Showing {bet_offset+1}–{min(bet_offset+50, bet_total)} of {bet_total:,}")
+                st.caption(f"Showing {bet_offset + 1}–{min(bet_offset + 50, bet_total)} of {bet_total:,}")
 
 st.divider()
 
