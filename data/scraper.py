@@ -127,7 +127,8 @@ def fetch_markets(active_only: bool = True, limit: int = 100, max_pages: int = 5
     offset = 0
 
     for page in range(max_pages):
-        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        params: dict[str, Any] = {"limit": limit, "offset": offset,
+                                  "order": "createdAt", "ascending": "false"}
         if active_only:
             params["active"] = "true"
             params["closed"] = "false"
