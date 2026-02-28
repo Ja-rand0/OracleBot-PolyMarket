@@ -624,3 +624,70 @@ Post-session audit (automated grep) found 21+ stale "28 methods" / S2/D6/M25 ref
 - Note: `yes_bet_ratio` is currently `0.5` (default) for all wallets until the next `update_wallet_stats()` run fills it. The real improvement will be visible after a full data collection cycle.
 - Run combinator to see if E methods start appearing in top combos
 - Close P006 (`report.py` placeholder Wallet)
+
+---
+
+### Session 14 — E-fix verification + P006 + data analysis (2026-02-25)
+
+**Work completed:**
+
+- **yes_bet_ratio population**: Ran `update_wallet_stats()` via `tmp_populate.py`. 134,388 wallets updated; 87,441 with non-default values; 54,517 strongly biased (>85% or <15% YES). E10/E16 cross-market fix is now active.
+
+- **E-fix verification** (via `tmp_verify.py`): Base combo fitness dropped 0.3086→0.2800 (dataset grew since session 13). E-method fitness vs base:
+  | Combo | Fitness | Delta vs base |
+  |-------|---------|---------------|
+  | base (D5+T17+M26+P20) | 0.2800 | — |
+  | base+E10 | 0.2881 | +0.0081 (was -0.022 pre-fix) |
+  | base+E12 | 0.3041 | +0.0241 (beats base!) |
+  | base+E14 | 0.2910 | +0.0110 |
+  | base+E15 | 0.3006 | +0.0206 |
+  | base+E16 | 0.3007 | +0.0207 |
+  | base+E11 | 0.2700 | -0.0100 (still hurts) |
+  | base+E13 | 0.2728 | -0.0072 (still hurts) |
+  E10, E12, E14, E15, E16 all now improve on the base combo. E11 (recency bias) and E13 (hype detection) remain net-negative — temporal methods not affected by the yes_bet_ratio fix.
+
+- **B044 — P006 fixed** (`engine/report.py` line 50): `(wallets.get(b.wallet) or Wallet(address="")).rationality_score` replaced with `wallets[b.wallet].rationality_score if b.wallet in wallets else 0.5`. Missing wallets now default to neutral rationality (0.5) instead of 0.0, so `emotion_ratio` is no longer biased upward for markets with untracked wallets.
+
+- **All 85 tests passing.**
+
+**Fitness note:** Absolute fitness numbers are not comparable across sessions because the resolved market corpus grows each cycle. Compare relative (method vs base), not absolute.
+
+**Pending:**
+- Run combinator to see if E methods appear in top combos with the new yes_bet_ratio data
+- Data analysis of 24 collection cycles (launched in session 14, results pending)
+- Investigate E11/E13 — why do they still hurt? Is the threshold wrong or is the method fundamentally flawed for this data?
+
+---
+
+### Session 15 — Roadmap to Live Betting + Prediction Tracking (2026-02-25, ~14:35)
+
+**Phase 0 — Signal quality audit:**
+- Queried `holdout_validation` — no records exist (corpus of 37 resolved markets
+  with 5+ bets too small to produce a train/holdout split)
+- Best combo confirmed: S4+T17, fitness=0.355, accuracy=100%, edge=3.3%
+- Fitness gate (≥0.35) already cleared; holdout gap indeterminate until corpus grows
+
+**Phase 1 — Prediction tracking built:**
+- `data/db.py` — `predictions` table added to `init_db()` schema;
+  `insert_prediction()` logs a pick at report time;
+  `update_prediction_outcomes()` batch-resolves pending predictions when market settles
+- `engine/report.py` — `_log_predictions()` helper; called after `market_scores`
+  finalized; inserts top-20 picks per cycle, batch-committed
+- `main.py` — `update_prediction_outcomes()` called at start of each `run_analysis()`
+  before wallet stats update
+
+**CLAUDE.md updated:**
+- `predictions` table added to Database Schema block
+- New "Roadmap to Live Betting" section: phase gates, current status, verification queries
+
+**Files modified:**
+- `data/db.py` — predictions schema + `insert_prediction()` + `update_prediction_outcomes()`
+- `engine/report.py` — `_log_predictions()` helper + call after market_scores finalized
+- `main.py` — `update_prediction_outcomes()` at start of `run_analysis()`
+- `CLAUDE.md` — schema + roadmap section
+
+**Note:** `predictions` table will be created on next `python main.py run` invocation
+(via `init_db()`). Phase 4 (paper trading) clock starts on first analysis cycle.
+
+**Timestamp convention going forward:** All future session headers include wall-clock time
+in `(YYYY-MM-DD, ~HH:MM)` format.

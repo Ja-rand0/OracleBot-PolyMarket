@@ -1,6 +1,48 @@
 import pytest
-from methods.suspicious import s1_win_rate_outlier, s4_sandpit_filter
+from methods.suspicious import s1_win_rate_outlier, s3_coordination_clustering, s4_sandpit_filter
 from tests.conftest import make_bet, make_wallet
+
+
+# --- S3 ---
+
+def test_s3_too_few_bets(base_market):
+    # < 10 bets → early return with zero signal/confidence
+    bets = [make_bet(wallet=f"W{i}") for i in range(5)]
+    wallets = {f"W{i}": make_wallet(address=f"W{i}") for i in range(5)}
+    result = s3_coordination_clustering(base_market, bets, wallets)
+    assert result.signal == 0.0
+    assert result.confidence == 0.0
+
+
+def test_s3_no_strong_edges(base_market):
+    # 10 wallets each with 1 bet same-side same-time → only 1 co-occurrence per pair
+    # (below strong_edge threshold of 2) → no graph → returns signal=0, confidence=0.1
+    bets = [make_bet(wallet=f"W{i}", side="YES", offset_hours=0) for i in range(10)]
+    wallets = {f"W{i}": make_wallet(address=f"W{i}") for i in range(10)}
+    result = s3_coordination_clustering(base_market, bets, wallets)
+    if result.metadata.get("reason") == "missing dependencies":
+        assert result.signal == 0.0
+    else:
+        assert result.signal == 0.0
+        assert result.confidence == pytest.approx(0.1)
+
+
+def test_s3_coordinated_cluster_does_not_crash(base_market):
+    # 5 wallets × 2 YES bets each at same timestamp → each wallet-pair has 4 co-occurrences
+    # (≥2 strong_edge threshold). If deps present: cluster detected, confidence > 0.
+    # If deps missing: returns gracefully with reason metadata.
+    bets = []
+    for i in range(5):
+        bets.append(make_bet(wallet=f"W{i}", side="YES", amount=100, offset_hours=0))
+        bets.append(make_bet(wallet=f"W{i}", side="YES", amount=150, offset_hours=0))
+    wallets = {f"W{i}": make_wallet(address=f"W{i}") for i in range(5)}
+    result = s3_coordination_clustering(base_market, bets, wallets)
+    assert result.signal is not None
+    assert 0.0 <= result.confidence <= 1.0
+    if result.metadata.get("reason") == "missing dependencies":
+        assert result.signal == 0.0
+    else:
+        assert result.confidence > 0.0
 
 
 # --- S1 ---

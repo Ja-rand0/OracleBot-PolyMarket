@@ -349,39 +349,6 @@ def fetch_trades_for_market(
     return bets
 
 
-# ---------------------------------------------------------------------------
-# CLOB API — Order book snapshots
-# ---------------------------------------------------------------------------
-
-def fetch_orderbook(token_id: str) -> dict:
-    """Fetch order book for a token from the CLOB API."""
-    key = f"orderbook:{token_id}"
-    cached = _cache_get(key)
-    if cached is not None:
-        return cached
-    url = f"{config.POLYMARKET_BASE_URL}/book"
-    data = _get(url, params={"token_id": token_id})
-    _cache_set(key, data, _TTL_PRICES)
-    return data
-
-
-def fetch_price_history(condition_id: str, interval: str = "1d", fidelity: int = 60) -> list[dict]:
-    """Fetch price history for a market. interval: 1h, 6h, 1d, 1w, max."""
-    key = f"price_history:{condition_id}:{interval}:{fidelity}"
-    cached = _cache_get(key)
-    if cached is not None:
-        return cached
-    url = f"{config.POLYMARKET_BASE_URL}/prices-history"
-    data = _get(url, params={"market": condition_id, "interval": interval, "fidelity": fidelity})
-    result = data.get("history", []) if data else []
-    _cache_set(key, result, _TTL_PRICES)
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Polygon on-chain (optional, requires API key)
-# ---------------------------------------------------------------------------
-
 def fetch_leaderboard(
     limit: int = 100,
     time_period: str = "ALL",
@@ -436,58 +403,3 @@ def fetch_leaderboard(
     log.info("Leaderboard: fetched %d wallets (period=%s, order=%s)", len(results), time_period, order_by)
     _cache_set(key, results, _TTL_MARKETS)
     return results
-
-
-def fetch_wallet_transactions(wallet: str, page: int = 1) -> list[dict]:
-    """Fetch transaction history for a wallet from Polygonscan."""
-    if not config.POLYGONSCAN_API_KEY:
-        log.warning("POLYGONSCAN_API_KEY not set — skipping on-chain lookup for %s", wallet[:10])
-        return []
-
-    key = f"wallet_tx:{wallet}:{page}"
-    cached = _cache_get(key)
-    if cached is not None:
-        return cached
-
-    params = {
-        "module": "account",
-        "action": "txlist",
-        "address": wallet,
-        "startblock": 0,
-        "endblock": 99999999,
-        "page": page,
-        "offset": 100,
-        "sort": "desc",
-        "apikey": config.POLYGONSCAN_API_KEY,
-    }
-    data = _get(config.POLYGONSCAN_BASE_URL, params=params)
-    result = data.get("result", []) if data and data.get("status") == "1" else []
-    _cache_set(key, result, _TTL_HISTORY)
-    return result
-
-
-def fetch_token_transfers(wallet: str, page: int = 1) -> list[dict]:
-    """Fetch ERC-20 token transfers for a wallet from Polygonscan."""
-    if not config.POLYGONSCAN_API_KEY:
-        return []
-
-    key = f"wallet_erc20:{wallet}:{page}"
-    cached = _cache_get(key)
-    if cached is not None:
-        return cached
-
-    params = {
-        "module": "account",
-        "action": "tokentx",
-        "address": wallet,
-        "startblock": 0,
-        "endblock": 99999999,
-        "page": page,
-        "offset": 100,
-        "sort": "desc",
-        "apikey": config.POLYGONSCAN_API_KEY,
-    }
-    data = _get(config.POLYGONSCAN_BASE_URL, params=params)
-    result = data.get("result", []) if data and data.get("status") == "1" else []
-    _cache_set(key, result, _TTL_HISTORY)
-    return result

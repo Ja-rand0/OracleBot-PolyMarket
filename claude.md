@@ -222,4 +222,36 @@ wallet_relationships(wallet_a, wallet_b PK, relationship_type, confidence)
 method_results(id INTEGER PK AUTO, combo_id UNIQUE, methods_used JSON, accuracy, edge_vs_market, false_positive_rate, complexity, fitness_score, tested_at)
   -- Index: idx_mr_combo_unique
 holdout_validation(id INTEGER PK AUTO, combo_id, train_markets, holdout_markets, train_fitness, holdout_fitness, tested_at)
+predictions(id INTEGER PK AUTO, market_id, predicted_at, predicted_side, market_price_at_prediction,
+            bot_signal, bot_confidence, bot_edge, combo_id,
+            resolved_at, actual_outcome, correct INT)
+  -- Index: idx_predictions_market
+  -- correct=NULL until market resolves; correct=1/0 filled by update_prediction_outcomes()
 ```
+
+---
+
+## Roadmap to Live Betting
+
+Current status (2026-02-28): analytics pipeline working, 88 tests passing.
+Best combo: S4+T17, fitness=0.3546, accuracy=100%, edge=3.35%, corpus=42 resolved markets (5+ bets), 22 with 50+ bets.
+180 predictions logged; 44 resolving within 7 days (Phase 4 data incoming).
+
+### Phase gates (must clear in order)
+
+| Phase | Gate | Status |
+|-------|------|--------|
+| **0** | Holdout gap audit + E-method recheck | ✅ Done — fitness 0.3546 (>0.35 gate cleared); holdout gap TBD (corpus too small, 22 markets with 50+ bets) |
+| **1** | Prediction tracking table live | ✅ Done — `predictions` table + logging wired in |
+| **2** | ≥300 resolved markets with ≥50 bets AND holdout gap < 0.04 | ⏳ Ongoing — need 6-8 weeks data growth |
+| **3** | Best combo holdout edge ≥ 5%, holdout fitness ≥ 0.35, gap < 0.04 | ❌ Blocked on Phase 2 |
+| **4** | ≥30 resolved predictions, real-time accuracy ≥ 55%, edge ≥ 3% | ⏳ 180 logged, 0 resolved yet — 44 resolving within 7 days |
+| **5** | Bet placement + Kelly sizing + risk limits | ❌ Blocked on Phase 3+4 |
+| **6** | Live trading, $100-200 bankroll, 2% Kelly cap | ❌ Blocked on Phase 5 |
+
+**Verification queries:**
+- Phase 1: `SELECT COUNT(*), SUM(correct IS NOT NULL) FROM predictions` — should grow each cycle
+- Phase 2: resolved 50+ bet corpus: `SELECT COUNT(*) FROM (SELECT market_id FROM bets b JOIN markets m ON b.market_id=m.id WHERE m.resolved=1 GROUP BY b.market_id HAVING COUNT(*)>=50)`
+- Phase 4: `SELECT correct, COUNT(*) FROM predictions WHERE correct IS NOT NULL GROUP BY correct`
+
+**What NOT to build yet:** Streamlit GUI, WebSocket feeds, FRED/NOAA data, multi-market portfolio optimization, any bet placement code.
